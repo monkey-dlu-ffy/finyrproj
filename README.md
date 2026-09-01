@@ -92,17 +92,73 @@ a fraud label, or E5 becomes undefendable.
 
 ## Local LLM
 
-Configured in `config.py` via `OLLAMA_MODEL`, overridable per machine:
+**Decision: qwen2.5:3b-instruct, not 7b.** Measured, not assumed.
+
+This machine: 7.76 GB RAM total, ~0.5 GB free, 21.6 GB committed to pagefile,
+4-core i5-1155G7, Intel Iris Xe (no discrete GPU).
+
+| model | resident size | measured | verdict |
+|---|---|---|---|
+| qwen2.5:3b-instruct | ~1.9 GB | **3.09 tok/s**, 67 s per 160-token finding | slow but usable for batch |
+| qwen2.5:7b-instruct | ~4.7 GB | not viable — exceeds free RAM | would page-thrash |
+
+3b is already in the "batch/offline only" band. Do not put a synchronous LLM
+call behind a dashboard interaction; precompute narratives in a batch job and
+serve them from cache.
 
 ```powershell
-$env:OLLAMA_MODEL = "qwen2.5:3b-instruct"
+python experiments/bench_llm.py                  # tok/s per model
+python experiments/probe_llm_determinism.py      # is output reproducible?
 ```
 
-Benchmark before designing around a model size:
+### Reproducibility of LLM output — measured caveat
 
-```powershell
-python experiments/bench_llm.py
+`probe_llm_determinism.py` found that at `temperature=0` with a fixed seed, the
+**first generation after a model load differs from every subsequent one**. Each
+regime repeats itself exactly, but the two disagree:
+
 ```
+resident model    -> sha cae41f3b2b0d (167 chars), stable
+after eviction    -> sha 1b83575e6424 (195 chars), stable
+```
+
+Seed and `num_thread` are not the cause; model residency is. With ~0.5 GB free
+RAM, Ollama evicts and reloads unpredictably, so **a rerun hours later can
+produce different text for identical input.**
+
+Consequence: cache LLM output keyed by a hash of its input and treat the cache
+as the reproducible artifact. Never let LLM text enter a number that E5 is
+computed over.
+
+## Document pipeline
+
+Verified end-to-end by `experiments/smoke_document.py`
+(reportlab -> PDF -> pdf2image/poppler -> PaddleOCR), all fields round-tripped:
+
+```
+reportlab    0.09s
+pdf2image    0.22s   1654x2339 px at 200 dpi
+paddleocr   71.11s   11 text lines     <-- the bottleneck
+```
+
+**OCR costs ~71 s/page on this CPU.** A 1,000-invoice batch is ~20 hours. Treat
+OCR as an offline batch stage with cached, resumable output keyed by file hash;
+never call it inside a request. Lower the DPI and revisit the detector size if
+that is too slow.
+
+### paddlepaddle oneDNN crash
+
+paddlepaddle 3.3.1 aborts on this CPU with:
+
+```
+NotImplementedError: (Unimplemented) ConvertPirAttribute2RuntimeAttribute
+not support [pir::ArrayAttribute<pir::DoubleAttribute>]
+  (onednn_instruction.cc:118)
+```
+
+Fix applied in `smoke_document.py`: set `FLAGS_use_mkldnn=0` **before** paddle
+is imported and pass `enable_mkldnn=False` to `PaddleOCR`. Any new module that
+imports paddle must do the same, or it will crash the same way.
 
 ## Data policy
 

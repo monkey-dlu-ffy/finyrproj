@@ -17,6 +17,19 @@ experiments/**/*.joblib
 experiments/**/*.pt
 experiments/**/*.onnx
 
+# Archives -- Kaggle drops arrive as .zip and are pure dataset weight.
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.7z
+*.rar
+
+# Scratch staging area for downloaded datasets (Kaggle zips, extractions,
+# upload samples). Never versioned.
+dummy/
+
 # Common data extensions, wherever they land
 *.csv
 *.tsv

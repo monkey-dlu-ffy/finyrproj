@@ -1,0 +1,13 @@
+[
+  {
+    "model": "qwen2.5:3b-instruct",
+    "runs": 3,
+    "median_total_s": 66.9542469,
+    "median_gen_tps": 3.089606220137551,
+    "median_prompt_tps": 47.75458215653952,
+    "first_load_s": 31.1179594,
+    "identical_outputs": false,
+    "sample": "Based on the evidence provided by the transaction, document, and reconciliation agents, the invoice INV-4471 shows an amount of 48,200 USD, which is 6.1 sigmas above the vendor's 90-day mean. The OCR confidence for the total field is 0.71, and the invoice template does not match the vendor's previous 14 submissions. Additionally, there is no PO number present, and the counterparty bank account dif",
+    "verdict": "SLOW -- batch/offline only; painful behind a dashboard"
+  }
+]

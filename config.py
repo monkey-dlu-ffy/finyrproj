@@ -48,12 +48,25 @@ NOTEBOOKS_DIR = PROJECT_ROOT / "notebooks"
 
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 
+# 3b, not 7b. Measured on this machine (experiments/bench_llm.py):
+#   qwen2.5:3b-instruct -> 3.09 tok/s median, 67 s for a 160-token finding
+# 7b (Q4, ~4.7 GB resident) was not viable: the box has 7.76 GB total RAM with
+# ~0.5 GB free and 21.6 GB already committed to the pagefile, so a 7b would
+# thrash rather than run. Revisit only on hardware with more free RAM.
+#
 # Overridable per-machine without editing code:
-#   PowerShell:  $env:OLLAMA_MODEL = "qwen2.5:3b-instruct"
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b-instruct")
+#   PowerShell:  $env:OLLAMA_MODEL = "qwen2.5:7b-instruct"
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:3b-instruct")
 
 LLM_TEMPERATURE = 0.0   # greedy decoding -- agent output must be auditable
-LLM_SEED = RANDOM_SEED  # Ollama honours this only at temperature 0
+LLM_SEED = RANDOM_SEED  # necessary but NOT sufficient, see below
+
+# Measured caveat (experiments/probe_llm_determinism.py): at temperature 0 with
+# a fixed seed, the FIRST generation after a model load differs from every
+# later one. Both regimes are internally repeatable but disagree with each
+# other, and memory pressure evicts the model unpredictably. So LLM text is not
+# reliably reproducible across sessions: cache it keyed by input hash and treat
+# the cache as the artifact E5 is computed over.
 LLM_NUM_CTX = 8192
 LLM_TIMEOUT_S = 300     # CPU-only inference is slow; fail loudly, not silently
 
