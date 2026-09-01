@@ -48,11 +48,14 @@ NOTEBOOKS_DIR = PROJECT_ROOT / "notebooks"
 
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 
-# 3b, not 7b. Measured on this machine (experiments/bench_llm.py):
-#   qwen2.5:3b-instruct -> 3.09 tok/s median, 67 s for a 160-token finding
-# 7b (Q4, ~4.7 GB resident) was not viable: the box has 7.76 GB total RAM with
-# ~0.5 GB free and 21.6 GB already committed to the pagefile, so a 7b would
-# thrash rather than run. Revisit only on hardware with more free RAM.
+# 3b, not 7b. Both pulled and measured on this machine, not assumed:
+#   qwen2.5:3b-instruct -> 3.09 tok/s  ->  ~52-67 s per 160-token finding
+#   qwen2.5:7b-instruct -> 0.12 tok/s  ->  ~24 MIN per 160-token finding
+# 7b is ~26x slower. It is not a load-time artifact: with the model already
+# resident (load_duration 0.0 s) generation still ran at 0.12 tok/s, and free
+# RAM fell from 0.55 GB to 0.05 GB -- it thrashes the pagefile continuously on
+# 7.76 GB total RAM with no GPU. 7b remains pulled for reference; do not use it
+# here. Revisit only on hardware with materially more free RAM.
 #
 # Overridable per-machine without editing code:
 #   PowerShell:  $env:OLLAMA_MODEL = "qwen2.5:7b-instruct"

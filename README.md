@@ -97,10 +97,17 @@ a fraud label, or E5 becomes undefendable.
 This machine: 7.76 GB RAM total, ~0.5 GB free, 21.6 GB committed to pagefile,
 4-core i5-1155G7, Intel Iris Xe (no discrete GPU).
 
-| model | resident size | measured | verdict |
-|---|---|---|---|
-| qwen2.5:3b-instruct | ~1.9 GB | **3.09 tok/s**, 67 s per 160-token finding | slow but usable for batch |
-| qwen2.5:7b-instruct | ~4.7 GB | not viable — exceeds free RAM | would page-thrash |
+Both models were pulled and benchmarked. This is measured, not extrapolated:
+
+| model | size | gen rate | 160-token finding | verdict |
+|---|---|---|---|---|
+| qwen2.5:3b-instruct | 1.9 GB | **3.09 tok/s** | ~52–67 s | slow, usable for batch |
+| qwen2.5:7b-instruct | 4.7 GB | **0.12 tok/s** | **~24 min** | unusable — thrashes |
+
+**7b is ~26× slower**, and not because of load time: with the model already
+resident (`load_duration` 0.0 s) generation still measured 0.12 tok/s, while
+free RAM fell from 0.55 GB → 0.05 GB. It pages continuously against 7.76 GB
+total RAM with no GPU. 7b stays pulled for reference but must not be used here.
 
 3b is already in the "batch/offline only" band. Do not put a synchronous LLM
 call behind a dashboard interaction; precompute narratives in a batch job and
