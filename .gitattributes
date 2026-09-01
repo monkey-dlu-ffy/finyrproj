@@ -1,0 +1,26 @@
+# Normalise line endings so a file hashes identically on Windows and Linux.
+# Without this, checking the repo out on another OS changes file contents and
+# any hash-based provenance check on source files breaks.
+* text=auto eol=lf
+
+# Windows-only scripts keep CRLF.
+*.ps1   text eol=crlf
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# Never touch binaries.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.pdf   binary
+*.parquet binary
+*.pkl   binary
+*.joblib binary
+*.pt    binary
+*.pth   binary
+*.onnx  binary
+*.gguf  binary
+*.safetensors binary
+
+# Notebooks: diff as text, but they are noisy by nature.
+*.ipynb text eol=lf

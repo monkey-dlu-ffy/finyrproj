@@ -111,6 +111,25 @@ def hash_probe() -> float:
         return float(np.random.rand())
 
 
+def check_poppler() -> bool:
+    """pdf2image imports cleanly without poppler, then fails at first use.
+
+    Catch it here rather than in week 2 when the document agent hits its first
+    real PDF.
+    """
+    import shutil
+
+    exe = shutil.which("pdftoppm")
+    if exe is None:
+        print(f"[{FAIL}] poppler      pdftoppm not on PATH")
+        print("         pdf2image imports fine but raises at first convert()")
+        print("         winget install oschwartz10612.Poppler")
+        return False
+
+    print(f"[{OK}] poppler      {exe}")
+    return True
+
+
 def check_ollama() -> bool:
     try:
         import httpx
@@ -144,6 +163,8 @@ def main() -> int:
     missing = check_imports()
     print("-" * 60)
     det_ok = check_determinism() if not missing else False
+    print("-" * 60)
+    poppler_ok = check_poppler()
     llm_ok = check_ollama()
     print("=" * 60)
 
@@ -151,7 +172,7 @@ def main() -> int:
 
     if missing:
         print(f"missing packages: pip install {' '.join(missing)}")
-    if not (py_ok and not missing and det_ok and llm_ok):
+    if not (py_ok and not missing and det_ok and poppler_ok and llm_ok):
         print("environment INCOMPLETE")
         return 1
 
