@@ -19,6 +19,7 @@ dashboard/         Streamlit review UI + FastAPI scoring service
 experiments/       run configs and metrics
 models/            trained artifacts (gitignored)
 notebooks/         exploration
+scripts/           operational utilities (model pulls, setup)
 config.py          seed + paths + LLM settings; imported everywhere
 ```
 
@@ -117,6 +118,22 @@ serve them from cache.
 python experiments/bench_llm.py                  # tok/s per model
 python experiments/probe_llm_determinism.py      # is output reproducible?
 ```
+
+### Pulling a model on a flaky link
+
+A plain `ollama pull` never completed here. Use the supervised wrapper — it is
+how both Phase 0 models were actually obtained:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\pull_model.ps1
+powershell -ExecutionPolicy Bypass -File scripts\pull_model.ps1 -Model qwen2.5:7b-instruct
+```
+
+It retries on TLS drops (Ollama resumes from the partial blob, so attempts make
+forward progress) **and** kills a child that hangs without moving bytes — a
+plain retry loop only handles the first case and blocks forever on the second.
+Progress is measured by free-disk delta, not the partial file's length, because
+Ollama pre-allocates the blob to full size up front.
 
 ### Reproducibility of LLM output — measured caveat
 
