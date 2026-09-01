@@ -1,0 +1,56 @@
+# fraud-audit -- declared dependencies (intent).
+#
+# Exact pinned versions live in requirements.lock.txt, produced by
+# `pip freeze` after a successful install. Install from the lock file to
+# reproduce a run; install from this file to move versions forward.
+#
+# NOTE: torch is NOT listed here. On this machine (no NVIDIA GPU) it must come
+# from the CPU wheel index, otherwise pip may pull a multi-gigabyte CUDA build:
+#
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+#
+# NOTE: pdf2image is a wrapper around the poppler binaries, which are NOT a pip
+# package. See README.md -> "System dependencies".
+
+# --- core numerics -----------------------------------------------------
+numpy
+pandas
+pyarrow                 # parquet engine for data/processed
+scipy
+
+# --- classical ML ------------------------------------------------------
+scikit-learn
+xgboost
+lightgbm
+
+# --- explainability ----------------------------------------------------
+shap
+
+# --- deep learning / NLP ----------------------------------------------
+transformers            # torch installed separately, see note above
+
+# --- document pipeline -------------------------------------------------
+paddlepaddle            # paddleocr's engine; NOT installed automatically by it
+paddleocr
+pdf2image               # needs poppler on PATH
+pillow
+reportlab               # synthesised invoices for the document agent
+
+# --- local LLM ---------------------------------------------------------
+ollama                  # thin client for the local Ollama daemon
+httpx
+
+# --- serving / UI ------------------------------------------------------
+fastapi
+uvicorn[standard]
+streamlit
+jinja2
+sqlalchemy
+
+# --- plots -------------------------------------------------------------
+matplotlib
+seaborn
+
+# --- notebooks ---------------------------------------------------------
+jupyterlab
+ipykernel

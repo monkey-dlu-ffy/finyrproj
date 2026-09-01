@@ -1,0 +1,93 @@
+# ---------------------------------------------------------------------------
+# Datasets and trained artifacts -- NEVER commit these.
+# Pattern keeps the directory skeleton (via .gitkeep) but ignores all content.
+# ---------------------------------------------------------------------------
+data/**
+!data/**/
+!data/**/.gitkeep
+
+models/**
+!models/**/
+!models/**/.gitkeep
+
+# Experiment outputs: keep configs and metrics, drop heavy artifacts.
+experiments/**/artifacts/
+experiments/**/*.pkl
+experiments/**/*.joblib
+experiments/**/*.pt
+experiments/**/*.onnx
+
+# Common data extensions, wherever they land
+*.csv
+*.tsv
+*.parquet
+*.feather
+*.xlsx
+*.xls
+*.db
+*.sqlite
+*.sqlite3
+*.pdf
+*.jpg
+*.jpeg
+*.png
+*.tif
+*.tiff
+!dashboard/assets/*.png
+!docs/**/*.png
+
+# Model weights / checkpoints
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.gguf
+*.h5
+*.ckpt
+*.pkl
+*.joblib
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ---------------------------------------------------------------------------
+# Notebooks
+# ---------------------------------------------------------------------------
+.ipynb_checkpoints/
+
+# ---------------------------------------------------------------------------
+# Secrets / local overrides
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets.yaml
+
+# ---------------------------------------------------------------------------
+# Tooling / OS
+# ---------------------------------------------------------------------------
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
+mlruns/
+*.log
