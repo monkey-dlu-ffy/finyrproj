@@ -23,6 +23,68 @@ scripts/           operational utilities (model pulls, setup)
 config.py          seed + paths + LLM settings; imported everywhere
 ```
 
+## The pipeline (SAP-ERP corpus)
+
+This is the real system: a synthetic SAP-ERP journal-entry ledger
+(`dummy/erp/fraud_dataset_v2.csv`, from GitiHubi/deepAD) linked to rendered
+invoice images, with 5 fraud typologies injected (`duplicate_invoice`,
+`ghost_vendor`, `threshold_split`, `desc_amount_mismatch`, `altered_amount`),
+run through 4 agents, fused, and served on a review dashboard.
+
+There's a separate, older reference track (`data_pipeline/`, the non-`_erp`
+files in `agents/transaction/`) built on the Sparkov credit-card dataset —
+kept around, not part of this pipeline, don't confuse the two.
+
+**Currently runs on a ground-truth fast path for document fields, not real
+OCR.** Two Kaggle attempts at real PaddleOCR extraction both failed (one too
+slow — ~8.5hr for 792 images; one broke on a CUDA library version conflict).
+Full story in `scripts/kaggle_ocr_extract.py`'s docstring. The document and
+reconciliation agents currently read the linked corpus's own known
+vendor/amount/invoice fields as if they'd been extracted — that's a
+deliberate stand-in, not a bug, and it's why the reconciliation and fusion
+numbers below are believable but not proof the OCR step works.
+
+To reproduce from scratch:
+
+```powershell
+python scripts\build_linked_corpus.py       # ledger + synthesized vendor/date/invoice fields, typology injection, split
+python scripts\generate_invoices.py         # renders + degrades invoice images for ~16% of the corpus (all fraud rows + a genuine sample)
+python scripts\train_transaction_agent.py   # xgboost + IsolationForest + isotonic calibration, local (~1s, small corpus)
+python scripts\run_reconciliation_agent.py  # rule-based checks; prints per-typology fire rate as a sanity check
+python scripts\run_fusion.py                # 5-fold OOF stacking -> logistic regression meta-classifier
+python scripts\run_xai.py                   # SHAP global/local, deletion faithfulness, seed stability
+python scripts\run_experiments.py           # E1/E2/E3/E4/E7 + bootstrap CIs, from run_fusion.py's output
+```
+
+Each writes its result to `experiments/*.json` (metrics) or `experiments/*.parquet`
+(scored rows) — read those directly rather than re-running everything to see
+current numbers. Headline result: fusion test PR-AUC 0.92, recall 1.0 at 91%
+precision; reconciliation alone carries almost the whole signal (E4 ablation:
+dropping it collapses PR-AUC to 0.13).
+
+To view the dashboard:
+
+```powershell
+# terminal 1
+python -m uvicorn dashboard.api:app --port 8811
+# terminal 2
+python -m streamlit run dashboard\app.py
+```
+
+Then open `http://localhost:8501`. Sidebar filters by risk tier; click a
+case in the left panel to see its invoice image, agent scores, fired
+reconciliation rules, and an LLM-generated narrative (first view per case is
+slow — ~30-60s to generate, then cached). Accept/Reject/Escalate buttons log
+to an append-only SQLite audit log (`experiments/audit_log.sqlite3`).
+
+**Known gaps, not fixed:**
+- `threshold_split` typology has no dedicated reconciliation rule (it's a
+  cross-invoice grouping pattern; no single-row check catches it)
+- Document agent's text-risk is keyword/rule-based, not the spec's
+  fine-tuned sentence-transformer classifier
+- No LIME baseline (XAI has SHAP only), no LayoutLMv3 fine-tuning on DocILE,
+  no auditor survey, no demo video, no formal write-up
+
 ## Setup
 
 Python **3.11** (not 3.13 — several pinned deps lack 3.13 wheels).
