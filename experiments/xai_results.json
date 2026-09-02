@@ -1,0 +1,62 @@
+{
+  "global_importance": {
+    "vendor_frequency_rank": 1.2932844161987305,
+    "PRCTR": 0.2822394073009491,
+    "BUKRS": 0.267208456993103,
+    "amount_zscore_by_vendor": 0.09324317425489426,
+    "hour_of_day": 0.04303203150629997,
+    "KTOSL": 0.038310445845127106,
+    "posting_lag_days": 0.02997925505042076,
+    "iforest_score": 0.02821565605700016,
+    "days_since_last_vendor_txn": 0.022786954417824745,
+    "amount_zscore_by_account": 0.01948832906782627,
+    "WAERS": 0.017418161034584045,
+    "benford_first_digit_deviation": 0.013213690370321274,
+    "amount_to_vendor_median_ratio": 0.010538626462221146,
+    "DMBTR": 0.007182994391769171,
+    "txn_count_7d_vendor": 0.00025881093461066484,
+    "is_round_amount": 0.0,
+    "is_weekend": 0.0,
+    "BSCHL": 0.0,
+    "HKONT": 0.0
+  },
+  "faithfulness": {
+    "mean_score_drop_shap_topk": -0.000987726030871272,
+    "mean_score_drop_random_control": -0.00015604656073264778
+  },
+  "stability": {
+    "mean_jaccard_seed0_vs_seed1": 0.2606320748751027,
+    "n_seeds_compared": 3
+  },
+  "local_example": {
+    "row_id": 424,
+    "typology": "ghost_vendor",
+    "top_features": [
+      {
+        "feature": "vendor_frequency_rank",
+        "value": 174.0,
+        "shap": 0.7586712837219238
+      },
+      {
+        "feature": "amount_zscore_by_vendor",
+        "value": 0.0,
+        "shap": 0.12180610001087189
+      },
+      {
+        "feature": "PRCTR",
+        "value": "C17",
+        "shap": 0.10026832669973373
+      },
+      {
+        "feature": "BUKRS",
+        "value": "C89",
+        "shap": 0.09942929446697235
+      },
+      {
+        "feature": "amount_to_vendor_median_ratio",
+        "value": 1.0,
+        "shap": 0.0260017029941082
+      }
+    ]
+  }
+}
