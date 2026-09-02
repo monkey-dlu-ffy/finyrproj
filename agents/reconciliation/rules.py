@@ -80,8 +80,15 @@ class ReconciliationAgent:
 
         return fired
 
-    def analyze_batch(self, df: pd.DataFrame) -> list[AgentEnvelope]:
-        invoice_number_counts = df["invoice_number"].value_counts()
+    def analyze_batch(self, df: pd.DataFrame, invoice_number_counts: pd.Series | None = None) -> list[AgentEnvelope]:
+        """invoice_number_counts should normally come from the full ledger,
+        not just `df` -- duplicate_invoice only marks one of its two rows as
+        fraud, so if the other (genuine) copy isn't in `df` (e.g. `df` is
+        just the ~16% document-linked subset), a duplicate check scoped to
+        `df` alone misses most real duplicates. Defaults to `df` itself only
+        as a fallback for ad-hoc/single-batch callers."""
+        if invoice_number_counts is None:
+            invoice_number_counts = df["invoice_number"].value_counts()
         out = []
         for row_id, row in df.iterrows():
             fired = self._fired_rules(row, invoice_number_counts)

@@ -1,0 +1,98 @@
+{
+  "E1_transaction_only": {
+    "pr_auc": {
+      "point": 0.1510791366906475,
+      "ci_low": 0.09219858156028368,
+      "ci_high": 0.2148263888888889
+    },
+    "roc_auc": {
+      "point": 0.5785714285714285,
+      "ci_low": 0.5486111111111112,
+      "ci_high": 0.6115215290454203
+    }
+  },
+  "E2_document_only": {
+    "pr_auc": {
+      "point": 0.1543921916592724,
+      "ci_low": 0.09302112742330132,
+      "ci_high": 0.24081780538302278
+    },
+    "roc_auc": {
+      "point": 0.5617346938775509,
+      "ci_low": 0.462118426916221,
+      "ci_high": 0.6650085034013605
+    }
+  },
+  "E3_full_framework": {
+    "pr_auc": {
+      "point": 0.9164780739497582,
+      "ci_low": 0.7794335187229923,
+      "ci_high": 1.0
+    },
+    "roc_auc": {
+      "point": 0.9925170068027211,
+      "ci_low": 0.9797872340425533,
+      "ci_high": 1.0
+    }
+  },
+  "E7_recall_by_typology_full_framework": {
+    "duplicate_invoice": {
+      "n": 6,
+      "recall": 1.0
+    },
+    "ghost_vendor": {
+      "n": 8,
+      "recall": 1.0
+    },
+    "threshold_split": {
+      "n": 0,
+      "recall": NaN
+    },
+    "desc_amount_mismatch": {
+      "n": 5,
+      "recall": 1.0
+    },
+    "altered_amount": {
+      "n": 2,
+      "recall": 1.0
+    }
+  },
+  "E4_ablations": {
+    "no_document": {
+      "pr_auc": {
+        "point": 0.9372792595298989,
+        "ci_low": 0.8219213516746412,
+        "ci_high": 1.0
+      },
+      "roc_auc": {
+        "point": 0.9948979591836735,
+        "ci_low": 0.9851045898188742,
+        "ci_high": 1.0
+      }
+    },
+    "no_reconciliation": {
+      "pr_auc": {
+        "point": 0.13195964595031884,
+        "ci_low": 0.08065895159152796,
+        "ci_high": 0.19091658132862563
+      },
+      "roc_auc": {
+        "point": 0.4872448979591837,
+        "ci_low": 0.37410071942446044,
+        "ci_high": 0.5918409593976702
+      }
+    },
+    "no_transaction": {
+      "pr_auc": {
+        "point": 0.9164780739497582,
+        "ci_low": 0.7794335187229924,
+        "ci_high": 1.0
+      },
+      "roc_auc": {
+        "point": 0.9925170068027211,
+        "ci_low": 0.9797872340425533,
+        "ci_high": 1.0
+      }
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "coefficients": {
+    "transaction_score": 0.26361939119316,
+    "document_score": -1.7046779580590206,
+    "reconciliation_score": 8.369139398691555
+  },
+  "intercept": -0.8226107057597574,
+  "f1_threshold": 0.47000000000000003,
+  "recall_90_threshold": 0.73,
+  "val_at_f1_threshold": {
+    "pr_auc": 0.9052059052059052,
+    "roc_auc": 0.9913928012519562,
+    "precision": 0.72,
+    "recall": 1.0,
+    "tp": 18,
+    "fp": 7,
+    "fn": 0
+  },
+  "test_at_f1_threshold": {
+    "pr_auc": 0.9164780739497582,
+    "roc_auc": 0.9925170068027211,
+    "precision": 0.9130434782608695,
+    "recall": 1.0,
+    "tp": 21,
+    "fp": 2,
+    "fn": 0
+  },
+  "test_at_recall_90_threshold": {
+    "pr_auc": 0.9164780739497582,
+    "roc_auc": 0.9925170068027211,
+    "precision": 0.9047619047619048,
+    "recall": 0.9047619047619048,
+    "tp": 19,
+    "fp": 2,
+    "fn": 2
+  }
+}

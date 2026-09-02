@@ -24,15 +24,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from agents.reconciliation.rules import ReconciliationAgent
 from config import EXPERIMENTS_DIR, LINKED_DIR
+from linked_pipeline.invoices import resolve_vendor_name
 
 
 def load_manifest_with_ledger_fields() -> pd.DataFrame:
     manifest = pd.read_parquet(LINKED_DIR / "images" / "manifest.parquet")
+    vendor_master = pd.read_json(LINKED_DIR / "vendor_master.json")
+    vendor_name_by_id = dict(zip(vendor_master["vendor_id"], vendor_master["vendor_name"]))
+
     parts = []
     for split in manifest["split"].unique():
         ledger = pd.read_parquet(LINKED_DIR / f"{split}.parquet")
         sub = manifest.loc[manifest["split"] == split].set_index("row_id")
         joined = ledger.loc[sub.index].copy()
+        # ledger-side resolved name, distinct from extracted_vendor_name -- comparing
+        # vendor_id ("V0078") to a resolved name would make vendor_fuzzy_mismatch fire
+        # on nearly every row regardless of fraud status.
+        joined["vendor_name"] = joined["vendor_id"].map(lambda v: resolve_vendor_name(v, vendor_name_by_id))
         joined["extracted_amount"] = sub["invoice_amount"]
         joined["extracted_vendor_name"] = sub["vendor_name"]
         joined["split"] = split
@@ -51,7 +59,10 @@ def main() -> int:
     agent = ReconciliationAgent(
         vendor_master_ids=set(vendor_master["vendor_id"]), high_amount_threshold=high_amount_threshold
     )
-    envelopes = agent.analyze_batch(df)
+    full_ledger_counts = pd.concat(
+        [pd.read_parquet(LINKED_DIR / f"{s}.parquet")["invoice_number"] for s in ("train", "val", "test")]
+    ).value_counts()
+    envelopes = agent.analyze_batch(df, invoice_number_counts=full_ledger_counts)
 
     df = df.copy()
     df["recon_score"] = [e.score for e in envelopes]

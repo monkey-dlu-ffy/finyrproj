@@ -38,6 +38,7 @@ from agents.reconciliation.rules import ReconciliationAgent
 from agents.transaction.features_erp import add_features, build_xy, fit_vendor_account_stats
 from agents.transaction.model_erp import TransactionAgent
 from config import EXPERIMENTS_DIR, LINKED_DIR, RANDOM_SEED, seed_everything
+from linked_pipeline.invoices import resolve_vendor_name
 
 N_FOLDS = 5
 
@@ -82,6 +83,10 @@ def main() -> int:
     manifest = load_manifest_joined()
 
     vendor_master = pd.read_json(LINKED_DIR / "vendor_master.json")
+    vendor_name_by_id = dict(zip(vendor_master["vendor_id"], vendor_master["vendor_name"]))
+    for df in splits.values():
+        df["vendor_name"] = df["vendor_id"].map(lambda v: resolve_vendor_name(v, vendor_name_by_id))
+
     genuine_train = splits["train"].loc[splits["train"]["is_fraud"] == 0]
     high_amount_threshold = float(genuine_train["DMBTR"].quantile(0.9))
     recon_agent = ReconciliationAgent(
@@ -94,15 +99,24 @@ def main() -> int:
     X_val, y_val = build_xy(splits["val"])
     full_agent = TransactionAgent(seed=RANDOM_SEED).fit(X_train, y_train, X_val, y_val)
 
+    # scan the FULL ledger for duplicate invoice#s, not just the imaged subset -- see
+    # ReconciliationAgent.analyze_batch docstring: duplicate_invoice only marks one of
+    # its two rows fraud, and the other (genuine) copy is usually outside the ~16% subset.
+    full_ledger_counts = pd.concat([s["invoice_number"] for s in splits.values()]).value_counts()
+
     rows = []
     for split_name, df in splits.items():
-        sub_ids = manifest.index[manifest["split"] == split_name]
-        sub_ids = sub_ids.intersection(df.index)
+        # row_id is only unique WITHIN a split (each split.parquet was written with
+        # reset_index(drop=True)), so the manifest must be filtered to this split
+        # before indexing by row_id, or .loc matches same-numbered rows from other
+        # splits too and raises on the resulting duplicate labels.
+        split_manifest = manifest.loc[manifest["split"] == split_name]
+        sub_ids = split_manifest.index.intersection(df.index)
         joined = df.loc[sub_ids].copy()
-        joined["extracted_amount"] = manifest.loc[sub_ids, "invoice_amount"]
-        joined["extracted_vendor_name"] = manifest.loc[sub_ids, "vendor_name"]
+        joined["extracted_amount"] = split_manifest.loc[sub_ids, "invoice_amount"]
+        joined["extracted_vendor_name"] = split_manifest.loc[sub_ids, "vendor_name"]
 
-        recon_scores = {e.row_id: e.score for e in recon_agent.analyze_batch(joined)}
+        recon_scores = {e.row_id: e.score for e in recon_agent.analyze_batch(joined, invoice_number_counts=full_ledger_counts)}
         doc_scores = {e.row_id: e.score for e in doc_agent.analyze_batch(joined)}
 
         if split_name == "train":
