@@ -140,6 +140,31 @@ def get_case(row_id: int):
         }
         image_path = m["image_path"]
 
+    # duplicate_invoice_number's evidence cites the original ledger entry
+    # (BELNR/vendor/date/amount) -- if that row also has a rendered image
+    # (scripts/generate_invoices.py guarantees this for every duplicate
+    # pair), surface it so the dashboard can show the original invoice
+    # itself, not just its identifying fields. Duplicate pairs always share
+    # a vendor (see linked_pipeline/typologies.py::inject_duplicate_invoice),
+    # and vendor-disjoint splitting keeps a vendor's rows in one split, so
+    # the original is always in this same "test" manifest when present.
+    duplicate_original = None
+    for e in recon_evidence:
+        if e.get("type") == "duplicate_invoice_number" and e.get("matches"):
+            match = e["matches"][0]
+            orig_row_id = match.get("row_id")
+            if orig_row_id is not None and orig_row_id in manifest.index:
+                om = manifest.loc[orig_row_id]
+                duplicate_original = {
+                    "row_id": int(orig_row_id),
+                    "image_path": om["image_path"],
+                    "vendor_name": om["vendor_name"],
+                    "invoice_number": om["invoice_number"],
+                    "invoice_amount": om["invoice_amount"],
+                    "ledger_amount": om["ledger_amount"],
+                }
+            break
+
     if row_id not in state["narrative_cache"]:
         case = {**row, "recon_evidence": recon_evidence, "doc_fields": doc_fields}
         try:
@@ -152,6 +177,7 @@ def get_case(row_id: int):
         "recon_evidence": recon_evidence,
         "doc_fields": doc_fields,
         "image_path": image_path,
+        "duplicate_original": duplicate_original,
         "narrative": state["narrative_cache"][row_id],
     }
 

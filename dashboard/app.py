@@ -82,6 +82,28 @@ with right:
     else:
         st.success("No rules fired.")
 
+    original = detail.get("duplicate_original")
+    if original:
+        st.write("**Duplicate invoice — side by side with the original**")
+        dup_col, orig_col = st.columns(2)
+        with dup_col:
+            st.caption(f"This case · #{row_id}")
+            img_path = detail.get("image_path")
+            if img_path and (LINKED_DIR / img_path).exists():
+                st.image(str(LINKED_DIR / img_path), use_container_width=True)
+        with orig_col:
+            st.caption(f"Original · #{original['row_id']}")
+            orig_path = LINKED_DIR / original["image_path"]
+            if orig_path.exists():
+                st.image(str(orig_path), use_container_width=True)
+            st.write(
+                {
+                    "vendor": original["vendor_name"],
+                    "invoice_number": original["invoice_number"],
+                    "amount": original["invoice_amount"],
+                }
+            )
+
     st.write("**Coordinator narrative**")
     narrative = detail.get("narrative", {})
     st.write(narrative.get("narrative", "(unavailable)"))

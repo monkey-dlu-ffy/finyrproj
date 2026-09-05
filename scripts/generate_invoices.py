@@ -6,9 +6,17 @@ At full ledger scale (533,009 rows) one image per row would need ~110GB
 (observed ~213KB/image) -- far beyond this machine's free disk. Instead the
 image count is capped at N_IMAGES_TARGET regardless of ledger size, split
 proportionally across train/val/test by row count. Every injected fraud row
-still gets one (that's what the document/reconciliation agents need to show
-a signal on); the rest of the budget is filled with a matched genuine
-sample.
+gets one (that's what the document/reconciliation agents need to show a
+signal on), as does every duplicate_invoice row's genuine original (so the
+dashboard can display it, not just cite its BELNR); the rest of the budget
+is filled with a matched genuine sample.
+
+Idempotent: a row already rendered by a prior run is reused rather than
+re-rendered (same row_id -> same seed -> same output), so re-running after a
+selection-logic change (e.g. adding the duplicate-invoice originals above)
+only pays for the net-new rows, not a full re-render. Rows dropped from the
+new selection have their image file removed so disk usage doesn't grow
+unbounded across re-runs.
 
 Rendering (reportlab render + pdf2image rasterize + PIL degrade) is
 ~0.9s/doc single-threaded, so it's parallelized across CPU_WORKERS processes
@@ -52,11 +60,20 @@ DISK_SAFETY_BUDGET_BYTES = 7 * 1024**3  # leaves 2GB+ buffer on a 9.2GB-free dis
 def select_subset(df: pd.DataFrame, seed: int, n_target: int) -> pd.DataFrame:
     rng = np.random.default_rng(seed)
     fraud = df[df["is_fraud"] == 1]
-    n_genuine = max(n_target - len(fraud), 0)
-    genuine_pool = df.index[df["is_fraud"] == 0].to_numpy().copy()
+
+    # duplicate_invoice's genuine counterpart ("the original") must also be
+    # imaged -- the dashboard shows it next to the duplicate, not just a text
+    # citation of its BELNR. It shares the fraud row's invoice_number but is
+    # itself genuine, so it isn't already covered by `fraud` above.
+    dup_invoice_numbers = fraud.loc[fraud["typology"] == "duplicate_invoice", "invoice_number"]
+    originals = df[(df["is_fraud"] == 0) & (df["invoice_number"].isin(dup_invoice_numbers))]
+
+    required = pd.concat([fraud, originals])
+    n_genuine = max(n_target - len(required), 0)
+    genuine_pool = df.index[(df["is_fraud"] == 0) & (~df.index.isin(originals.index))].to_numpy().copy()
     rng.shuffle(genuine_pool)
     genuine = df.loc[genuine_pool[:n_genuine]]
-    return pd.concat([fraud, genuine]).sort_index()
+    return pd.concat([required, genuine]).sort_index()
 
 
 def _render_job(job: tuple[dict, int, str]) -> int:
@@ -79,18 +96,21 @@ def main() -> int:
 
     manifest_rows = []
     jobs = []
+    total_reused_bytes = 0
     for split, df in splits_data.items():
         n_target = round(N_IMAGES_TARGET * len(df) / total_rows)
         subset = select_subset(df, seed=RANDOM_SEED, n_target=n_target)
         out_dir = IMAGE_DIR / split
         out_dir.mkdir(parents=True, exist_ok=True)
 
+        selected_paths = set()
+        n_reused = 0
+        reused_bytes = 0
         for row_id, row in subset.iterrows():
             d = row.to_dict()
             d["vendor_name"] = resolve_vendor_name(d["vendor_id"], vendor_name_by_id)
             path = out_dir / f"{row_id}.jpg"
-            seed = int(row_id) + hash(split) % 1000
-            jobs.append((d, seed, str(path)))
+            selected_paths.add(path)
             manifest_rows.append(
                 {
                     "row_id": int(row_id),
@@ -104,7 +124,30 @@ def main() -> int:
                     "typology": d["typology"],
                 }
             )
-        print(f"{split}: {len(subset):,} images queued (target {n_target:,}/{len(df):,} rows)")
+            # Idempotent: a row already rendered under a prior run (same
+            # seed -> same output) is reused rather than re-rendered, so
+            # adding a handful of new required rows doesn't cost a full
+            # ~90-minute re-render of the whole target count.
+            if path.exists():
+                n_reused += 1
+                reused_bytes += path.stat().st_size
+                continue
+            seed = int(row_id) + hash(split) % 1000
+            jobs.append((d, seed, str(path)))
+
+        # Drop images for rows no longer selected (e.g. a prior run's random
+        # genuine fill that this run's required set displaced).
+        n_orphans = 0
+        for existing in out_dir.glob("*.jpg"):
+            if existing not in selected_paths:
+                existing.unlink()
+                n_orphans += 1
+
+        total_reused_bytes += reused_bytes
+        print(
+            f"{split}: {len(subset):,} images selected (target {n_target:,}/{len(df):,} rows), "
+            f"{n_reused:,} reused, {len(subset) - n_reused:,} to render, {n_orphans:,} orphans removed"
+        )
 
     print(f"rendering {len(jobs):,} images across {CPU_WORKERS} processes")
     t0 = time.time()
@@ -114,7 +157,7 @@ def main() -> int:
             sizes.append(size)
             if n_done == DISK_SAFETY_CHECK_AFTER:
                 avg = sum(sizes) / len(sizes)
-                projected = avg * len(jobs)
+                projected = total_reused_bytes + avg * len(jobs)
                 print(f"disk-safety check: avg {avg / 1024:.1f}KB/image, projected total {projected / 1024**3:.2f}GB")
                 if projected > DISK_SAFETY_BUDGET_BYTES:
                     pool.terminate()
@@ -130,7 +173,7 @@ def main() -> int:
 
     manifest = pd.DataFrame(manifest_rows)
     manifest.to_parquet(IMAGE_DIR / "manifest.parquet", index=False)
-    total_bytes = sum(sizes)
+    total_bytes = total_reused_bytes + sum(sizes)
     print(f"wrote {IMAGE_DIR / 'manifest.parquet'} ({len(manifest):,} rows, {total_bytes / 1024**3:.2f}GB on disk)")
     return 0
 
