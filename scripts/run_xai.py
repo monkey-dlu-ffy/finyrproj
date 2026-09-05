@@ -21,7 +21,7 @@ import shap
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from agents.transaction.features_erp import add_features, build_xy, fit_vendor_account_stats
+from agents.transaction.features_erp import add_features, build_xy, fit_category_levels, fit_vendor_account_stats
 from agents.transaction.model_erp import TransactionAgent
 from config import EXPERIMENTS_DIR, LINKED_DIR, RANDOM_SEED, seed_everything
 
@@ -77,13 +77,13 @@ def deletion_auc(agent: TransactionAgent, df: pd.DataFrame, X: pd.DataFrame, sha
     }
 
 
-def stability_jaccard(train_df, val_df, test_df, n_seeds: int) -> dict:
+def stability_jaccard(train_df, val_df, test_df, n_seeds: int, category_levels: dict[str, list]) -> dict:
     top5_per_seed = []
-    X_test, _ = build_xy(test_df)
+    X_test, _ = build_xy(test_df, category_levels)
     for seed in range(n_seeds):
-        X_train, y_train = build_xy(train_df)
-        X_val, y_val = build_xy(val_df)
-        agent = TransactionAgent(seed=RANDOM_SEED + seed).fit(X_train, y_train, X_val, y_val)
+        X_train, y_train = build_xy(train_df, category_levels)
+        X_val, y_val = build_xy(val_df, category_levels)
+        agent = TransactionAgent(seed=RANDOM_SEED + seed, category_levels=category_levels).fit(X_train, y_train, X_val, y_val)
         X_test_full = agent._feature_frame(test_df)
         explainer = shap.TreeExplainer(agent.xgb_model)
         sv = explainer.shap_values(X_test_full)
@@ -101,11 +101,12 @@ def stability_jaccard(train_df, val_df, test_df, n_seeds: int) -> dict:
 def main() -> int:
     seed_everything()
     train_df, val_df, test_df = load_engineered()
-    X_train, y_train = build_xy(train_df)
-    X_val, y_val = build_xy(val_df)
-    X_test, y_test = build_xy(test_df)
+    category_levels = fit_category_levels(train_df, val_df, test_df)
+    X_train, y_train = build_xy(train_df, category_levels)
+    X_val, y_val = build_xy(val_df, category_levels)
+    X_test, y_test = build_xy(test_df, category_levels)
 
-    agent = TransactionAgent(seed=RANDOM_SEED).fit(X_train, y_train, X_val, y_val)
+    agent = TransactionAgent(seed=RANDOM_SEED, category_levels=category_levels).fit(X_train, y_train, X_val, y_val)
     X_test_full = agent._feature_frame(test_df)
 
     explainer = shap.TreeExplainer(agent.xgb_model)
@@ -120,7 +121,7 @@ def main() -> int:
     print("--- deletion faithfulness (bigger drop = more faithful) ---")
     print(json.dumps(faithfulness, indent=2))
 
-    stability = stability_jaccard(train_df, val_df, test_df, N_STABILITY_SEEDS)
+    stability = stability_jaccard(train_df, val_df, test_df, N_STABILITY_SEEDS, category_levels)
     print("--- stability (top-5 SHAP feature Jaccard overlap across seeds) ---")
     print(json.dumps(stability, indent=2))
 

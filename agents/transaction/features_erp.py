@@ -142,9 +142,28 @@ CATEGORICAL_FEATURES = ["WAERS", "BUKRS", "KTOSL", "PRCTR", "BSCHL", "HKONT"]
 FEATURE_COLUMNS = NUMERIC_FEATURES + CATEGORICAL_FEATURES
 
 
-def build_xy(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
+def fit_category_levels(*dfs: pd.DataFrame) -> dict[str, list]:
+    """Canonical category levels per categorical column, fit across every
+    split (train+val+test) so a code that only happens to land in one split
+    or one CV fold (e.g. a rare BUKRS/PRCTR value) never becomes an
+    xgboost-unrecognized category at scoring time -- pandas' `.astype
+    ("category")` otherwise infers categories independently from whatever
+    subset it's given. These SAP codes are a fixed reference vocabulary
+    (company codes, GL accounts, ...), not something inferred from labels,
+    so enumerating them from the full corpus isn't a leakage concern the way
+    fit_vendor_account_stats' amount statistics (train-genuine-only) are."""
+    combined = pd.concat([df[CATEGORICAL_FEATURES] for df in dfs], ignore_index=True)
+    return {col: sorted(combined[col].dropna().unique().tolist()) for col in CATEGORICAL_FEATURES}
+
+
+def _as_categorical(series: pd.Series, levels: list | None) -> pd.Series:
+    dtype = pd.CategoricalDtype(categories=levels) if levels is not None else "category"
+    return series.astype(dtype)
+
+
+def build_xy(df: pd.DataFrame, category_levels: dict[str, list] | None = None) -> tuple[pd.DataFrame, pd.Series]:
     X = df[FEATURE_COLUMNS].copy()
     for col in CATEGORICAL_FEATURES:
-        X[col] = X[col].astype("category")
+        X[col] = _as_categorical(X[col], category_levels[col] if category_levels else None)
     y = df["is_fraud"].astype("int8")
     return X, y

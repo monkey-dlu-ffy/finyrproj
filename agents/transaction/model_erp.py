@@ -25,7 +25,7 @@ from sklearn.ensemble import IsolationForest
 from sklearn.isotonic import IsotonicRegression
 
 from agents.envelope import AgentEnvelope
-from agents.transaction.features_erp import CATEGORICAL_FEATURES, FEATURE_COLUMNS, NUMERIC_FEATURES
+from agents.transaction.features_erp import CATEGORICAL_FEATURES, FEATURE_COLUMNS, NUMERIC_FEATURES, _as_categorical
 from config import RANDOM_SEED
 
 XGB_PARAMS = {
@@ -44,8 +44,9 @@ XGB_PARAMS = {
 
 
 class TransactionAgent:
-    def __init__(self, seed: int = RANDOM_SEED):
+    def __init__(self, seed: int = RANDOM_SEED, category_levels: dict[str, list] | None = None):
         self.seed = seed
+        self.category_levels = category_levels
         self.iforest: IsolationForest | None = None
         self.xgb_model: xgb.XGBClassifier | None = None
         self.calibrator: IsotonicRegression | None = None
@@ -79,7 +80,7 @@ class TransactionAgent:
     def _feature_frame(self, df: pd.DataFrame) -> pd.DataFrame:
         X = df[FEATURE_COLUMNS].copy()
         for col in CATEGORICAL_FEATURES:
-            X[col] = X[col].astype("category")
+            X[col] = _as_categorical(X[col], self.category_levels[col] if self.category_levels else None)
         X["iforest_score"] = self._iforest_scores(X[NUMERIC_FEATURES])
         return X
 

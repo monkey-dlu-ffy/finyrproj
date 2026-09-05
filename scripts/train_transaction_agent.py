@@ -17,7 +17,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from agents.transaction.evaluate_erp import rank_metrics, recall_at_threshold, recall_by_typology, threshold_at_precision
-from agents.transaction.features_erp import build_xy, fit_vendor_account_stats, add_features
+from agents.transaction.features_erp import build_xy, fit_category_levels, fit_vendor_account_stats, add_features
 from agents.transaction.model_erp import TransactionAgent
 from config import EXPERIMENTS_DIR, LINKED_DIR, MODELS_DIR, RANDOM_SEED, ensure_dirs, seed_everything
 
@@ -41,12 +41,13 @@ def main() -> int:
     test_df = add_features(test_df, stats, seed=RANDOM_SEED)
     print(f"engineered features ({time.time() - t0:.1f}s)")
 
-    X_train, y_train = build_xy(train_df)
-    X_val, y_val = build_xy(val_df)
-    X_test, y_test = build_xy(test_df)
+    category_levels = fit_category_levels(train_df, val_df, test_df)
+    X_train, y_train = build_xy(train_df, category_levels)
+    X_val, y_val = build_xy(val_df, category_levels)
+    X_test, y_test = build_xy(test_df, category_levels)
 
     t0 = time.time()
-    agent = TransactionAgent(seed=RANDOM_SEED)
+    agent = TransactionAgent(seed=RANDOM_SEED, category_levels=category_levels)
     agent.fit(X_train, y_train, X_val, y_val)
     print(f"trained ({time.time() - t0:.1f}s)")
 

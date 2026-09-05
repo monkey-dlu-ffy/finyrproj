@@ -107,8 +107,15 @@ class ReconciliationAgent:
         if ledger is None:
             ledger = df
         has_pointer_cols = "row_id" in ledger.columns and "split" in ledger.columns
+        # Only invoice numbers that repeat can ever produce a non-empty
+        # `others` list in _fired_rules -- at full ledger scale (533K rows,
+        # ~522K distinct invoice numbers) grouping/iterrows-ing the entire
+        # ledger to build entries that are never looked up made this the
+        # dominant cost of the whole fusion run. Filtering first drops the
+        # group count from ~527K to the low thousands.
+        dup_ledger = ledger.loc[ledger["invoice_number"].duplicated(keep=False)]
         invoice_index: dict[str, list[dict]] = {}
-        for inv, group in ledger.groupby("invoice_number"):
+        for inv, group in dup_ledger.groupby("invoice_number"):
             invoice_index[inv] = [
                 {
                     "BELNR": r["BELNR"],
