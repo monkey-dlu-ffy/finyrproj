@@ -73,6 +73,12 @@ with right:
     if evidence:
         for e in evidence:
             st.warning(f"**{e['type']}** — {e['detail']}")
+            for m in e.get("matches") or []:
+                where = f" ({m['split']} row {m['row_id']})" if m.get("row_id") is not None else ""
+                st.caption(
+                    f"↳ original entry: BELNR {m['BELNR']}{where} · vendor {m['vendor_id']}"
+                    f" · posted {m['posting_date']} · ${m['amount']:,.2f}"
+                )
     else:
         st.success("No rules fired.")
 

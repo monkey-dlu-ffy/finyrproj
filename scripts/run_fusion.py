@@ -102,7 +102,10 @@ def main() -> int:
     # scan the FULL ledger for duplicate invoice#s, not just the imaged subset -- see
     # ReconciliationAgent.analyze_batch docstring: duplicate_invoice only marks one of
     # its two rows fraud, and the other (genuine) copy is usually outside the ~16% subset.
-    full_ledger_counts = pd.concat([s["invoice_number"] for s in splits.values()]).value_counts()
+    # row_id/split columns let the rule cite exactly where that other copy lives.
+    full_ledger = pd.concat(
+        [df.reset_index(names="row_id").assign(split=name) for name, df in splits.items()]
+    )
 
     rows = []
     for split_name, df in splits.items():
@@ -116,7 +119,7 @@ def main() -> int:
         joined["extracted_amount"] = split_manifest.loc[sub_ids, "invoice_amount"]
         joined["extracted_vendor_name"] = split_manifest.loc[sub_ids, "vendor_name"]
 
-        recon_scores = {e.row_id: e.score for e in recon_agent.analyze_batch(joined, invoice_number_counts=full_ledger_counts)}
+        recon_scores = {e.row_id: e.score for e in recon_agent.analyze_batch(joined, ledger=full_ledger)}
         doc_scores = {e.row_id: e.score for e in doc_agent.analyze_batch(joined)}
 
         if split_name == "train":

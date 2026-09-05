@@ -59,10 +59,13 @@ def main() -> int:
     agent = ReconciliationAgent(
         vendor_master_ids=set(vendor_master["vendor_id"]), high_amount_threshold=high_amount_threshold
     )
-    full_ledger_counts = pd.concat(
-        [pd.read_parquet(LINKED_DIR / f"{s}.parquet")["invoice_number"] for s in ("train", "val", "test")]
-    ).value_counts()
-    envelopes = agent.analyze_batch(df, invoice_number_counts=full_ledger_counts)
+    full_ledger = pd.concat(
+        [
+            pd.read_parquet(LINKED_DIR / f"{s}.parquet").reset_index(names="row_id").assign(split=s)
+            for s in ("train", "val", "test")
+        ]
+    )
+    envelopes = agent.analyze_batch(df, ledger=full_ledger)
 
     df = df.copy()
     df["recon_score"] = [e.score for e in envelopes]

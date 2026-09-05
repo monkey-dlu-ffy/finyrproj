@@ -40,7 +40,7 @@ class ReconciliationAgent:
     vendor_master_ids: set[str]
     high_amount_threshold: float  # fit on train genuine DMBTR, see scripts/train_reconciliation_agent.py
 
-    def _fired_rules(self, row: pd.Series, invoice_number_counts: pd.Series) -> list[dict]:
+    def _fired_rules(self, row: pd.Series, invoice_index: dict[str, list[dict]]) -> list[dict]:
         fired = []
 
         ledger_amt = float(row["DMBTR"])
@@ -56,8 +56,22 @@ class ReconciliationAgent:
         if fuzzy < VENDOR_FUZZY_MIN_SCORE:
             fired.append({"type": "vendor_fuzzy_mismatch", "detail": f"'{ledger_vendor}' vs '{extracted_vendor}'", "value": fuzzy})
 
-        if invoice_number_counts.get(row["invoice_number"], 1) > 1:
-            fired.append({"type": "duplicate_invoice_number", "detail": row["invoice_number"], "value": int(invoice_number_counts[row["invoice_number"]])})
+        others = [m for m in invoice_index.get(row["invoice_number"], []) if m["BELNR"] != row["BELNR"]]
+        if others:
+            o = others[0]  # spec's typology only ever pairs two rows; if more exist, lead with the first
+            proof = (
+                f"invoice {row['invoice_number']} also posted as BELNR {o['BELNR']}"
+                f" (vendor {o['vendor_id']}, posted {o['posting_date']}, ${o['amount']:,.2f}"
+                f"{', ' + o['split'] + ' row ' + str(o['row_id']) if o.get('row_id') is not None else ''})"
+            )
+            fired.append(
+                {
+                    "type": "duplicate_invoice_number",
+                    "detail": proof,
+                    "value": len(others) + 1,
+                    "matches": others,
+                }
+            )
 
         if row["vendor_id"] not in self.vendor_master_ids:
             fired.append({"type": "vendor_absent_from_master", "detail": row["vendor_id"], "value": True})
@@ -80,18 +94,35 @@ class ReconciliationAgent:
 
         return fired
 
-    def analyze_batch(self, df: pd.DataFrame, invoice_number_counts: pd.Series | None = None) -> list[AgentEnvelope]:
-        """invoice_number_counts should normally come from the full ledger,
-        not just `df` -- duplicate_invoice only marks one of its two rows as
-        fraud, so if the other (genuine) copy isn't in `df` (e.g. `df` is
-        just the ~16% document-linked subset), a duplicate check scoped to
-        `df` alone misses most real duplicates. Defaults to `df` itself only
-        as a fallback for ad-hoc/single-batch callers."""
-        if invoice_number_counts is None:
-            invoice_number_counts = df["invoice_number"].value_counts()
+    def analyze_batch(self, df: pd.DataFrame, ledger: pd.DataFrame | None = None) -> list[AgentEnvelope]:
+        """`ledger` should be the FULL ledger (train+val+test), not just `df`
+        -- duplicate_invoice only marks one of its two rows as fraud, so if
+        the other (genuine) copy isn't in `df` (e.g. `df` is just the ~16%
+        document-linked subset), a duplicate check scoped to `df` alone
+        misses most real duplicates and can't point back to the original
+        entry. Include `row_id`/`split` columns on `ledger` (not just its
+        pandas index, which repeats 0..N per split) so the duplicate-invoice
+        proof can cite exactly where the original entry lives. Defaults to
+        `df` itself as a fallback for ad-hoc/single-batch callers."""
+        if ledger is None:
+            ledger = df
+        has_pointer_cols = "row_id" in ledger.columns and "split" in ledger.columns
+        invoice_index: dict[str, list[dict]] = {}
+        for inv, group in ledger.groupby("invoice_number"):
+            invoice_index[inv] = [
+                {
+                    "BELNR": r["BELNR"],
+                    "vendor_id": r["vendor_id"],
+                    "posting_date": str(r["posting_date"]),
+                    "amount": float(r["DMBTR"]),
+                    "row_id": int(r["row_id"]) if has_pointer_cols else None,
+                    "split": r["split"] if has_pointer_cols else None,
+                }
+                for _, r in group.iterrows()
+            ]
         out = []
         for row_id, row in df.iterrows():
-            fired = self._fired_rules(row, invoice_number_counts)
+            fired = self._fired_rules(row, invoice_index)
             score = min(1.0, sum(RULE_WEIGHTS[f["type"]] for f in fired))
             out.append(AgentEnvelope(agent="reconciliation", row_id=int(row_id), score=score, evidence=fired))
         return out

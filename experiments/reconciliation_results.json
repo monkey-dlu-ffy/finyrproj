@@ -217,8 +217,18 @@
     "recon_evidence":[
       {
         "type":"duplicate_invoice_number",
-        "detail":"INV-2603-000260",
-        "value":2
+        "detail":"invoice INV-2603-000260 also posted as BELNR 88718 (vendor V0060, posted 2026-03-10 00:00:00, $258,021.53, train row 147)",
+        "value":2,
+        "matches":[
+          {
+            "BELNR":88718,
+            "vendor_id":"V0060",
+            "posting_date":"2026-03-10 00:00:00",
+            "amount":258021.53,
+            "row_id":147,
+            "split":"train"
+          }
+        ]
       }
     ],
     "split":"train"
@@ -1346,8 +1356,18 @@
     "recon_evidence":[
       {
         "type":"duplicate_invoice_number",
-        "detail":"INV-2506-002705",
-        "value":2
+        "detail":"invoice INV-2506-002705 also posted as BELNR 144361 (vendor V0222, posted 2025-06-05 00:00:00, $705,859.45, train row 1610)",
+        "value":2,
+        "matches":[
+          {
+            "BELNR":144361,
+            "vendor_id":"V0222",
+            "posting_date":"2025-06-05 00:00:00",
+            "amount":705859.45,
+            "row_id":1610,
+            "split":"train"
+          }
+        ]
       }
     ],
     "split":"train"
@@ -1442,8 +1462,18 @@
     "recon_evidence":[
       {
         "type":"duplicate_invoice_number",
-        "detail":"INV-2603-004083",
-        "value":2
+        "detail":"invoice INV-2603-004083 also posted as BELNR 370016 (vendor V0070, posted 2026-03-09 00:00:00, $1,055,273.95, train row 2426)",
+        "value":2,
+        "matches":[
+          {
+            "BELNR":370016,
+            "vendor_id":"V0070",
+            "posting_date":"2026-03-09 00:00:00",
+            "amount":1055273.95,
+            "row_id":2426,
+            "split":"train"
+          }
+        ]
       }
     ],
     "split":"train"
@@ -1534,8 +1564,18 @@
     "recon_evidence":[
       {
         "type":"duplicate_invoice_number",
-        "detail":"INV-2504-000663",
-        "value":2
+        "detail":"invoice INV-2504-000663 also posted as BELNR 198908 (vendor V0219, posted 2025-04-21 00:00:00, $293,465.21, train row 383)",
+        "value":2,
+        "matches":[
+          {
+            "BELNR":198908,
+            "vendor_id":"V0219",
+            "posting_date":"2025-04-21 00:00:00",
+            "amount":293465.21,
+            "row_id":383,
+            "split":"train"
+          }
+        ]
       }
     ],
     "split":"train"
@@ -1648,8 +1688,18 @@
     "recon_evidence":[
       {
         "type":"duplicate_invoice_number",
-        "detail":"INV-2502-004726",
-        "value":2
+        "detail":"invoice INV-2502-004726 also posted as BELNR 232369 (vendor V0115, posted 2025-02-23 00:00:00, $521,783.95, train row 2831)",
+        "value":2,
+        "matches":[
+          {
+            "BELNR":232369,
+            "vendor_id":"V0115",
+            "posting_date":"2025-02-23 00:00:00",
+            "amount":521783.95,
+            "row_id":2831,
+            "split":"train"
+          }
+        ]
       }
     ],
     "split":"train"
@@ -1794,8 +1844,18 @@
     "recon_evidence":[
       {
         "type":"duplicate_invoice_number",
-        "detail":"INV-2604-002149",
-        "value":2
+        "detail":"invoice INV-2604-002149 also posted as BELNR 162821 (vendor V0238, posted 2026-04-13 00:00:00, $202,847.03, train row 1259)",
+        "value":2,
+        "matches":[
+          {
+            "BELNR":162821,
+            "vendor_id":"V0238",
+            "posting_date":"2026-04-13 00:00:00",
+            "amount":202847.03,
+            "row_id":1259,
+            "split":"train"
+          }
+        ]
       }
     ],
     "split":"train"
@@ -2176,8 +2236,18 @@
     "recon_evidence":[
       {
         "type":"duplicate_invoice_number",
-        "detail":"INV-2604-002149",
-        "value":2
+        "detail":"invoice INV-2604-002149 also posted as BELNR 190644 (vendor V0238, posted 2026-06-17 00:00:00, $562,272.83, train row 1057)",
+        "value":2,
+        "matches":[
+          {
+            "BELNR":190644,
+            "vendor_id":"V0238",
+            "posting_date":"2026-06-17 00:00:00",
+            "amount":562272.83,
+            "row_id":1057,
+            "split":"train"
+          }
+        ]
       },
       {
         "type":"missing_po",
@@ -3685,8 +3755,18 @@
     "recon_evidence":[
       {
         "type":"duplicate_invoice_number",
-        "detail":"INV-2503-004556",
-        "value":2
+        "detail":"invoice INV-2503-004556 also posted as BELNR 382023 (vendor V0168, posted 2025-03-27 00:00:00, $278,754.01, train row 2720)",
+        "value":2,
+        "matches":[
+          {
+            "BELNR":382023,
+            "vendor_id":"V0168",
+            "posting_date":"2025-03-27 00:00:00",
+            "amount":278754.01,
+            "row_id":2720,
+            "split":"train"
+          }
+        ]
       }
     ],
     "split":"train"
@@ -4959,8 +5039,18 @@
     "recon_evidence":[
       {
         "type":"duplicate_invoice_number",
-        "detail":"INV-2504-000634",
-        "value":2
+        "detail":"invoice INV-2504-000634 also posted as BELNR 255341 (vendor V0028, posted 2025-04-10 00:00:00, $959,221.50, train row 369)",
+        "value":2,
+        "matches":[
+          {
+            "BELNR":255341,
+            "vendor_id":"V0028",
+            "posting_date":"2025-04-10 00:00:00",
+            "amount":959221.5,
+            "row_id":369,
+            "split":"train"
+          }
+        ]
       }
     ],
     "split":"train"
@@ -5117,8 +5207,18 @@
     "recon_evidence":[
       {
         "type":"duplicate_invoice_number",
-        "detail":"INV-2511-003750",
-        "value":2
+        "detail":"invoice INV-2511-003750 also posted as BELNR 78278 (vendor V0134, posted 2025-11-14 00:00:00, $269,685.96, train row 2235)",
+        "value":2,
+        "matches":[
+          {
+            "BELNR":78278,
+            "vendor_id":"V0134",
+            "posting_date":"2025-11-14 00:00:00",
+            "amount":269685.96,
+            "row_id":2235,
+            "split":"train"
+          }
+        ]
       }
     ],
     "split":"train"
@@ -5225,8 +5325,18 @@
     "recon_evidence":[
       {
         "type":"duplicate_invoice_number",
-        "detail":"INV-2506-000402",
-        "value":2
+        "detail":"invoice INV-2506-000402 also posted as BELNR 303963 (vendor V0216, posted 2025-06-24 00:00:00, $68,848.31, train row 238)",
+        "value":2,
+        "matches":[
+          {
+            "BELNR":303963,
+            "vendor_id":"V0216",
+            "posting_date":"2025-06-24 00:00:00",
+            "amount":68848.31,
+            "row_id":238,
+            "split":"train"
+          }
+        ]
       }
     ],
     "split":"train"
@@ -5413,8 +5523,18 @@
     "recon_evidence":[
       {
         "type":"duplicate_invoice_number",
-        "detail":"INV-2510-004820",
-        "value":2
+        "detail":"invoice INV-2510-004820 also posted as BELNR 17003 (vendor V0253, posted 2025-10-22 00:00:00, $412,355.32, val row 971)",
+        "value":2,
+        "matches":[
+          {
+            "BELNR":17003,
+            "vendor_id":"V0253",
+            "posting_date":"2025-10-22 00:00:00",
+            "amount":412355.32,
+            "row_id":971,
+            "split":"val"
+          }
+        ]
       }
     ],
     "split":"val"
@@ -5643,8 +5763,18 @@
     "recon_evidence":[
       {
         "type":"duplicate_invoice_number",
-        "detail":"INV-2510-002776",
-        "value":2
+        "detail":"invoice INV-2510-002776 also posted as BELNR 61170 (vendor V0274, posted 2025-10-13 00:00:00, $30,491.43, val row 564)",
+        "value":2,
+        "matches":[
+          {
+            "BELNR":61170,
+            "vendor_id":"V0274",
+            "posting_date":"2025-10-13 00:00:00",
+            "amount":30491.43,
+            "row_id":564,
+            "split":"val"
+          }
+        ]
       }
     ],
     "split":"val"
@@ -6658,8 +6788,18 @@
     "recon_evidence":[
       {
         "type":"duplicate_invoice_number",
-        "detail":"INV-2503-000937",
-        "value":2
+        "detail":"invoice INV-2503-000937 also posted as BELNR 11329 (vendor V0162, posted 2025-03-24 00:00:00, $785,904.25, val row 177)",
+        "value":2,
+        "matches":[
+          {
+            "BELNR":11329,
+            "vendor_id":"V0162",
+            "posting_date":"2025-03-24 00:00:00",
+            "amount":785904.25,
+            "row_id":177,
+            "split":"val"
+          }
+        ]
       }
     ],
     "split":"val"
@@ -7071,8 +7211,18 @@
     "recon_evidence":[
       {
         "type":"duplicate_invoice_number",
-        "detail":"INV-2605-002623",
-        "value":2
+        "detail":"invoice INV-2605-002623 also posted as BELNR 512539 (vendor V0253, posted 2026-05-20 00:00:00, $651,964.30, val row 521)",
+        "value":2,
+        "matches":[
+          {
+            "BELNR":512539,
+            "vendor_id":"V0253",
+            "posting_date":"2026-05-20 00:00:00",
+            "amount":651964.3,
+            "row_id":521,
+            "split":"val"
+          }
+        ]
       },
       {
         "type":"missing_po",
@@ -7720,8 +7870,18 @@
     "recon_evidence":[
       {
         "type":"duplicate_invoice_number",
-        "detail":"INV-2604-003229",
-        "value":2
+        "detail":"invoice INV-2604-003229 also posted as BELNR 211693 (vendor V0294, posted 2026-04-01 00:00:00, $199,516.70, test row 660)",
+        "value":2,
+        "matches":[
+          {
+            "BELNR":211693,
+            "vendor_id":"V0294",
+            "posting_date":"2026-04-01 00:00:00",
+            "amount":199516.7,
+            "row_id":660,
+            "split":"test"
+          }
+        ]
       }
     ],
     "split":"test"
@@ -7874,8 +8034,18 @@
     "recon_evidence":[
       {
         "type":"duplicate_invoice_number",
-        "detail":"INV-2606-003745",
-        "value":2
+        "detail":"invoice INV-2606-003745 also posted as BELNR 96992 (vendor V0138, posted 2026-06-23 00:00:00, $223,896.03, test row 759)",
+        "value":2,
+        "matches":[
+          {
+            "BELNR":96992,
+            "vendor_id":"V0138",
+            "posting_date":"2026-06-23 00:00:00",
+            "amount":223896.03,
+            "row_id":759,
+            "split":"test"
+          }
+        ]
       },
       {
         "type":"missing_po",
@@ -7951,8 +8121,18 @@
     "recon_evidence":[
       {
         "type":"duplicate_invoice_number",
-        "detail":"INV-2606-000514",
-        "value":2
+        "detail":"invoice INV-2606-000514 also posted as BELNR 201825 (vendor V0095, posted 2026-06-08 00:00:00, $1,360,055.38, test row 114)",
+        "value":2,
+        "matches":[
+          {
+            "BELNR":201825,
+            "vendor_id":"V0095",
+            "posting_date":"2026-06-08 00:00:00",
+            "amount":1360055.3799999999,
+            "row_id":114,
+            "split":"test"
+          }
+        ]
       }
     ],
     "split":"test"
@@ -7965,8 +8145,18 @@
     "recon_evidence":[
       {
         "type":"duplicate_invoice_number",
-        "detail":"INV-2507-002073",
-        "value":2
+        "detail":"invoice INV-2507-002073 also posted as BELNR 88744 (vendor V0273, posted 2025-03-11 00:00:00, $766,243.13, test row 529)",
+        "value":2,
+        "matches":[
+          {
+            "BELNR":88744,
+            "vendor_id":"V0273",
+            "posting_date":"2025-03-11 00:00:00",
+            "amount":766243.13,
+            "row_id":529,
+            "split":"test"
+          }
+        ]
       }
     ],
     "split":"test"
@@ -8121,8 +8311,18 @@
     "recon_evidence":[
       {
         "type":"duplicate_invoice_number",
-        "detail":"INV-2505-004397",
-        "value":2
+        "detail":"invoice INV-2505-004397 also posted as BELNR 478874 (vendor V0201, posted 2025-05-22 00:00:00, $43,385.70, test row 880)",
+        "value":2,
+        "matches":[
+          {
+            "BELNR":478874,
+            "vendor_id":"V0201",
+            "posting_date":"2025-05-22 00:00:00",
+            "amount":43385.7,
+            "row_id":880,
+            "split":"test"
+          }
+        ]
       }
     ],
     "split":"test"
@@ -8169,8 +8369,18 @@
     "recon_evidence":[
       {
         "type":"duplicate_invoice_number",
-        "detail":"INV-2507-002073",
-        "value":2
+        "detail":"invoice INV-2507-002073 also posted as BELNR 117925 (vendor V0273, posted 2025-07-07 00:00:00, $313,223.04, test row 433)",
+        "value":2,
+        "matches":[
+          {
+            "BELNR":117925,
+            "vendor_id":"V0273",
+            "posting_date":"2025-07-07 00:00:00",
+            "amount":313223.04,
+            "row_id":433,
+            "split":"test"
+          }
+        ]
       }
     ],
     "split":"test"
@@ -8347,8 +8557,18 @@
     "recon_evidence":[
       {
         "type":"duplicate_invoice_number",
-        "detail":"INV-2604-002878",
-        "value":2
+        "detail":"invoice INV-2604-002878 also posted as BELNR 422398 (vendor V0066, posted 2026-04-21 00:00:00, $397,661.54, test row 578)",
+        "value":2,
+        "matches":[
+          {
+            "BELNR":422398,
+            "vendor_id":"V0066",
+            "posting_date":"2026-04-21 00:00:00",
+            "amount":397661.54,
+            "row_id":578,
+            "split":"test"
+          }
+        ]
       }
     ],
     "split":"test"
