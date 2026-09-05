@@ -1,37 +1,37 @@
 {
   "coefficients": {
-    "transaction_score": 0.26361939119316,
-    "document_score": -1.7046779580590206,
-    "reconciliation_score": 8.369139398691555
+    "transaction_score": 0.3409005826904981,
+    "document_score": -0.25459807502786524,
+    "reconciliation_score": 15.780043868021599
   },
-  "intercept": -0.8226107057597574,
-  "f1_threshold": 0.47000000000000003,
-  "recall_90_threshold": 0.73,
+  "intercept": -1.6223314721674928,
+  "f1_threshold": 0.42000000000000004,
+  "recall_90_threshold": 0.16,
   "val_at_f1_threshold": {
-    "pr_auc": 0.9052059052059052,
-    "roc_auc": 0.9913928012519562,
-    "precision": 0.72,
-    "recall": 1.0,
-    "tp": 18,
-    "fp": 7,
-    "fn": 0
+    "pr_auc": 0.8865317356771103,
+    "roc_auc": 0.8779887993156932,
+    "precision": 0.9625850340136054,
+    "recall": 0.7486772486772487,
+    "tp": 1132,
+    "fp": 44,
+    "fn": 380
   },
   "test_at_f1_threshold": {
-    "pr_auc": 0.9164780739497582,
-    "roc_auc": 0.9925170068027211,
-    "precision": 0.9130434782608695,
-    "recall": 1.0,
-    "tp": 21,
-    "fp": 2,
-    "fn": 0
+    "pr_auc": 0.9497691474863473,
+    "roc_auc": 0.917212562196657,
+    "precision": 0.9758986928104575,
+    "recall": 0.8189921151868358,
+    "tp": 2389,
+    "fp": 59,
+    "fn": 528
   },
   "test_at_recall_90_threshold": {
-    "pr_auc": 0.9164780739497582,
-    "roc_auc": 0.9925170068027211,
-    "precision": 0.9047619047619048,
-    "recall": 0.9047619047619048,
-    "tp": 19,
-    "fp": 2,
-    "fn": 2
+    "pr_auc": 0.9497691474863473,
+    "roc_auc": 0.917212562196657,
+    "precision": 0.6431967398686892,
+    "recall": 0.9739458347617416,
+    "tp": 2841,
+    "fp": 1576,
+    "fn": 76
   }
 }

@@ -35,12 +35,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from agents.document.extract import DocumentAgent
 from agents.reconciliation.rules import ReconciliationAgent
-from agents.transaction.features_erp import add_features, build_xy, fit_vendor_account_stats
+from agents.transaction.features_erp import add_features, build_xy, fit_category_levels, fit_vendor_account_stats
 from agents.transaction.model_erp import TransactionAgent
 from config import EXPERIMENTS_DIR, LINKED_DIR, RANDOM_SEED, seed_everything
 from linked_pipeline.invoices import resolve_vendor_name
 
 N_FOLDS = 5
+# At full ledger scale (533K rows), 5-fold OOF retraining is a Kaggle job --
+# see scripts/kaggle_train_transaction_erp.py. When its output parquet is
+# present, use it instead of retraining in-process here.
+EXTERNAL_TXN_SCORES = EXPERIMENTS_DIR / "transaction_scores.parquet"
 
 
 def load_engineered_splits() -> dict[str, pd.DataFrame]:
@@ -60,18 +64,20 @@ def load_manifest_joined() -> pd.DataFrame:
     return manifest
 
 
-def transaction_oof_scores(train_df: pd.DataFrame, val_df: pd.DataFrame, manifest_train_ids: np.ndarray) -> pd.Series:
+def transaction_oof_scores(
+    train_df: pd.DataFrame, val_df: pd.DataFrame, manifest_train_ids: np.ndarray, category_levels: dict[str, list]
+) -> pd.Series:
     y_manifest_train = train_df.loc[manifest_train_ids, "is_fraud"]
-    X_val, y_val = build_xy(val_df)
+    X_val, y_val = build_xy(val_df, category_levels)
 
     oof = pd.Series(index=manifest_train_ids, dtype=float)
     skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=RANDOM_SEED)
     for fold, (_, held_pos) in enumerate(skf.split(manifest_train_ids, y_manifest_train)):
         held_ids = manifest_train_ids[held_pos]
         fit_pool = train_df.drop(index=held_ids)
-        X_fit, y_fit = build_xy(fit_pool)
+        X_fit, y_fit = build_xy(fit_pool, category_levels)
 
-        agent = TransactionAgent(seed=RANDOM_SEED + fold)
+        agent = TransactionAgent(seed=RANDOM_SEED + fold, category_levels=category_levels)
         agent.fit(X_fit, y_fit, X_val, y_val)
         oof.loc[held_ids] = agent.score(train_df.loc[held_ids])
     return oof
@@ -87,6 +93,8 @@ def main() -> int:
     for df in splits.values():
         df["vendor_name"] = df["vendor_id"].map(lambda v: resolve_vendor_name(v, vendor_name_by_id))
 
+    category_levels = fit_category_levels(splits["train"], splits["val"], splits["test"])
+
     genuine_train = splits["train"].loc[splits["train"]["is_fraud"] == 0]
     high_amount_threshold = float(genuine_train["DMBTR"].quantile(0.9))
     recon_agent = ReconciliationAgent(
@@ -94,10 +102,16 @@ def main() -> int:
     )
     doc_agent = DocumentAgent()
 
-    # full-train transaction agent, used for val/test manifest rows (no OOF needed there)
-    X_train, y_train = build_xy(splits["train"])
-    X_val, y_val = build_xy(splits["val"])
-    full_agent = TransactionAgent(seed=RANDOM_SEED).fit(X_train, y_train, X_val, y_val)
+    external_txn_scores = None
+    full_agent = None
+    if EXTERNAL_TXN_SCORES.exists():
+        print(f"using precomputed transaction scores from {EXTERNAL_TXN_SCORES} (Kaggle run)")
+        external_txn_scores = pd.read_parquet(EXTERNAL_TXN_SCORES).set_index(["split", "row_id"])["transaction_score"]
+    else:
+        # full-train transaction agent, used for val/test manifest rows (no OOF needed there)
+        X_train, y_train = build_xy(splits["train"], category_levels)
+        X_val, y_val = build_xy(splits["val"], category_levels)
+        full_agent = TransactionAgent(seed=RANDOM_SEED, category_levels=category_levels).fit(X_train, y_train, X_val, y_val)
 
     # scan the FULL ledger for duplicate invoice#s, not just the imaged subset -- see
     # ReconciliationAgent.analyze_batch docstring: duplicate_invoice only marks one of
@@ -122,8 +136,10 @@ def main() -> int:
         recon_scores = {e.row_id: e.score for e in recon_agent.analyze_batch(joined, ledger=full_ledger)}
         doc_scores = {e.row_id: e.score for e in doc_agent.analyze_batch(joined)}
 
-        if split_name == "train":
-            txn_scores = transaction_oof_scores(splits["train"], splits["val"], sub_ids.to_numpy()).to_dict()
+        if external_txn_scores is not None:
+            txn_scores = external_txn_scores.loc[split_name].to_dict()
+        elif split_name == "train":
+            txn_scores = transaction_oof_scores(splits["train"], splits["val"], sub_ids.to_numpy(), category_levels).to_dict()
         else:
             txn_scores = dict(zip(sub_ids, full_agent.score(joined)))
 

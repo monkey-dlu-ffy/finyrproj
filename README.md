@@ -25,11 +25,20 @@ config.py          seed + paths + LLM settings; imported everywhere
 
 ## The pipeline (SAP-ERP corpus)
 
-This is the real system: a synthetic SAP-ERP journal-entry ledger
-(`dummy/erp/fraud_dataset_v2.csv`, from GitiHubi/deepAD) linked to rendered
-invoice images, with 5 fraud typologies injected (`duplicate_invoice`,
-`ghost_vendor`, `threshold_split`, `desc_amount_mismatch`, `altered_amount`),
-run through 4 agents, fused, and served on a review dashboard.
+This is the real system: the full synthetic SAP-ERP journal-entry ledger
+(`dummy/erp/fraud_dataset_v2.csv`, from GitiHubi/deepAD, 533,009 rows) linked
+to rendered invoice images, with 5 fraud typologies injected
+(`duplicate_invoice`, `ghost_vendor`, `threshold_split`,
+`desc_amount_mismatch`, `altered_amount`, ~2% combined rate ->
+~11,000 fraud rows), run through 4 agents, fused, and served on a review
+dashboard. An earlier build used a 5,000-row subsample of the same source
+for time-budget reasons; the full ledger is now used throughout.
+
+Document images are capped at 20,000 (every fraud row + a matched genuine
+sample), not one per ledger row -- at this corpus's ~213KB/image rendering
+cost, imaging all 533,009 rows would need ~110GB, far beyond what a laptop's
+free disk can hold. See `scripts/generate_invoices.py`'s docstring for the
+disk-safety check that enforces this.
 
 There's a separate, older reference track (`data_pipeline/`, the non-`_erp`
 files in `agents/transaction/`) built on the Sparkov credit-card dataset —
@@ -47,9 +56,20 @@ numbers below are believable but not proof the OCR step works.
 To reproduce from scratch:
 
 ```powershell
-python scripts\build_linked_corpus.py       # ledger + synthesized vendor/date/invoice fields, typology injection, split
-python scripts\generate_invoices.py         # renders + degrades invoice images for ~16% of the corpus (all fraud rows + a genuine sample)
-python scripts\train_transaction_agent.py   # xgboost + IsolationForest + isotonic calibration, local (~1s, small corpus)
+python scripts\build_linked_corpus.py       # full 533,009-row ledger, synthesized vendor/date/invoice fields, typology injection, split
+python scripts\generate_invoices.py         # renders + degrades invoice images, capped at 20,000 (all fraud rows + a genuine sample), parallelized across 8 processes (~90 min)
+```
+
+The transaction agent's 5-fold OOF retraining is a Kaggle job at this scale
+(this machine is RAM-constrained, no GPU) — see
+`scripts/kaggle_train_transaction_erp.py`'s docstring for the upload/push/
+download steps. Drop its output (`transaction_scores.parquet`) into
+`experiments/` before running fusion; `run_fusion.py` picks it up
+automatically instead of retraining in-process. (On a small corpus,
+`scripts/train_transaction_agent.py` still trains locally in seconds — no
+Kaggle needed there.)
+
+```powershell
 python scripts\run_reconciliation_agent.py  # rule-based checks; prints per-typology fire rate as a sanity check
 python scripts\run_fusion.py                # 5-fold OOF stacking -> logistic regression meta-classifier
 python scripts\run_xai.py                   # SHAP global/local, deletion faithfulness, seed stability
@@ -58,9 +78,25 @@ python scripts\run_experiments.py           # E1/E2/E3/E4/E7 + bootstrap CIs, fr
 
 Each writes its result to `experiments/*.json` (metrics) or `experiments/*.parquet`
 (scored rows) — read those directly rather than re-running everything to see
-current numbers. Headline result: fusion test PR-AUC 0.92, recall 1.0 at 91%
-precision; reconciliation alone carries almost the whole signal (E4 ablation:
-dropping it collapses PR-AUC to 0.13).
+current numbers. Headline result (full 533K-row corpus): fusion test PR-AUC
+0.95, precision 0.98/recall 0.82 at the F1-optimal threshold (or
+precision 0.64/recall 0.97 at the recall-90 threshold); reconciliation alone
+carries most of the signal (E4 ablation: dropping it collapses PR-AUC from
+0.95 to 0.72). Transaction-only (E1) improved sharply with more data
+(PR-AUC ~0.15 -> 0.71) — most of the 5 typologies still aren't purely
+numeric-feature-visible, but the model now has enough rows to learn what
+signal does exist.
+
+**Gotcha found only at full scale:** `agents/transaction/features_erp.py`'s
+categorical columns (`WAERS/BUKRS/KTOSL/PRCTR/BSCHL/HKONT`) used to infer
+their category set independently per `.astype("category")` call. At 5,000
+rows every split/fold happened to see every code; at 533K rows a rare code
+landing only in one CV fold crashed xgboost at scoring time
+(`XGBoostError: Found a category not in the training set`). Fixed by
+`fit_category_levels()` pinning one canonical vocabulary across train+val+test,
+threaded through every `build_xy()`/`TransactionAgent(...)` call — any new
+caller of either must pass `category_levels` or risk hitting this again on a
+large enough corpus.
 
 To view the dashboard:
 
@@ -79,7 +115,10 @@ to an append-only SQLite audit log (`experiments/audit_log.sqlite3`).
 
 **Known gaps, not fixed:**
 - `threshold_split` typology has no dedicated reconciliation rule (it's a
-  cross-invoice grouping pattern; no single-row check catches it)
+  cross-invoice grouping pattern; no single-row check catches it) --
+  confirmed this persists at full 533K-row scale (13.7% recall, E7), so it
+  isn't a small-sample artifact; more same-vendor/same-week density didn't
+  organically fix it the way it might have
 - Document agent's text-risk is keyword/rule-based, not the spec's
   fine-tuned sentence-transformer classifier
 - No LIME baseline (XAI has SHAP only), no LayoutLMv3 fine-tuning on DocILE,

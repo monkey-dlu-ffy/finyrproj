@@ -8,9 +8,12 @@ synthesized (linked_pipeline/vendors.py, synth.py) before the 5 typologies
 are injected (linked_pipeline/typologies.py) and the frame is split
 temporally with vendor disjointness enforced (linked_pipeline/split.py).
 
-N_ROWS=5000 is a time-budget choice: large enough for ~20 injected cases per
-typology at a 2% fraud rate, small enough that image generation (Phase 1b)
-and OCR (Kaggle) finish inside a few-hour session.
+N_ROWS=None uses the full raw table (533,009 rows) -- the original 5,000-row
+subsample was a time-budget choice for the first build session; scaling up
+per an explicit user decision to use the whole ledger (see the 2-day
+scale-up plan). Image generation still caps at a fixed count regardless of
+N_ROWS (scripts/generate_invoices.py), since disk, not row count, is the
+binding constraint there.
 """
 
 from __future__ import annotations
@@ -31,7 +34,7 @@ from linked_pipeline.typologies import inject_all_typologies
 from linked_pipeline.vendors import assign_vendors, build_vendor_master
 
 RAW_ERP_CSV = Path(__file__).resolve().parent.parent / "dummy" / "erp" / "fraud_dataset_v2.csv"
-N_ROWS = 5000
+N_ROWS = None  # None = use the full raw table
 
 
 def main() -> int:
@@ -41,8 +44,11 @@ def main() -> int:
 
     t0 = time.time()
     raw = pd.read_csv(RAW_ERP_CSV)
-    df = raw.sample(n=N_ROWS, random_state=RANDOM_SEED).reset_index(drop=True)
-    print(f"loaded+subsampled {len(df):,}/{len(raw):,} rows ({time.time() - t0:.1f}s)")
+    if N_ROWS is not None:
+        df = raw.sample(n=N_ROWS, random_state=RANDOM_SEED).reset_index(drop=True)
+    else:
+        df = raw.reset_index(drop=True)
+    print(f"loaded {len(df):,}/{len(raw):,} rows ({time.time() - t0:.1f}s)")
 
     vendor_master = build_vendor_master(df["HKONT"], seed=RANDOM_SEED)
     df["vendor_id"] = assign_vendors(df, vendor_master, seed=RANDOM_SEED)
