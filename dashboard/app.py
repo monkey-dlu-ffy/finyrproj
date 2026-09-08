@@ -151,7 +151,10 @@ with right:
         # BELNR/posting_date; differing fields are marked so the reviewer sees
         # which is which without diffing two JSON blobs by eye.
         this_entry = detail.get("case_entry") or {}
-        st.dataframe(_entry_diff(this_entry, original), use_container_width=True)
+        # st.table, not st.dataframe: dataframe scrolls inside a fixed height,
+        # which hid the amount rows -- the two amounts are the point of the
+        # comparison, so every row has to be on screen at once.
+        st.table(_entry_diff(this_entry, original))
 
         dup_col, orig_col = st.columns(2)
         for col, label, ent in (
