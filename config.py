@@ -119,6 +119,23 @@ def seed_everything(seed: int = RANDOM_SEED) -> int:
     return seed
 
 
+def stable_hash(value) -> int:
+    """Process-stable replacement for the builtin `hash()`.
+
+    `hash()` on a str is randomised per interpreter unless PYTHONHASHSEED is
+    set *before* the process starts -- setting it inside seed_everything() is
+    too late, because CPython reads it only at startup. Any derived value
+    built on `hash(some_string)` therefore changes on every run, which
+    silently voids the reproducibility contract above.
+
+    Use this wherever a string must map to a stable bucket or seed.
+    """
+    import hashlib
+
+    digest = hashlib.blake2b(str(value).encode("utf-8"), digest_size=8).digest()
+    return int.from_bytes(digest, "big")
+
+
 def ensure_dirs() -> None:
     """Create the data/model directories. Safe to call repeatedly.
 
@@ -157,5 +174,6 @@ __all__ = [
     "VAL_SIZE",
     "N_FOLDS",
     "seed_everything",
+    "stable_hash",
     "ensure_dirs",
 ]

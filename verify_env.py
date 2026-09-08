@@ -24,19 +24,22 @@ from config import (
 )
 
 # (import name, pip name) -- they differ often enough to be worth spelling out.
-PACKAGES = [
+#
+# Split required/optional because a missing OPTIONAL package used to fail the
+# whole check, and `check_determinism()` is skipped whenever anything is
+# missing -- so on a machine without paddleocr (which is every machine here;
+# OCR runs on Kaggle) the reproducibility check silently never ran.
+REQUIRED_PACKAGES = [
     ("numpy", "numpy"),
     ("pandas", "pandas"),
     ("pyarrow", "pyarrow"),
     ("scipy", "scipy"),
     ("sklearn", "scikit-learn"),
     ("xgboost", "xgboost"),
-    ("lightgbm", "lightgbm"),
+    ("rapidfuzz", "rapidfuzz"),  # reconciliation agent's vendor fuzzy match
     ("shap", "shap"),
     ("torch", "torch"),
     ("transformers", "transformers"),
-    ("paddle", "paddlepaddle"),
-    ("paddleocr", "paddleocr"),
     ("pdf2image", "pdf2image"),
     ("PIL", "pillow"),
     ("reportlab", "reportlab"),
@@ -46,9 +49,17 @@ PACKAGES = [
     ("uvicorn", "uvicorn"),
     ("streamlit", "streamlit"),
     ("jinja2", "jinja2"),
-    ("sqlalchemy", "sqlalchemy"),
     ("matplotlib", "matplotlib"),
-    ("seaborn", "seaborn"),
+]
+
+# Declared in requirements.txt but not imported by anything on the local
+# pipeline path. Absence is reported, never fatal.
+OPTIONAL_PACKAGES = [
+    ("paddle", "paddlepaddle", "OCR runs on Kaggle; needed only by experiments/smoke_document.py"),
+    ("paddleocr", "paddleocr", "same -- see README 'Document pipeline'"),
+    ("lightgbm", "lightgbm", "declared, but the transaction agent is xgboost + IsolationForest"),
+    ("sqlalchemy", "sqlalchemy", "declared, but the audit log uses stdlib sqlite3"),
+    ("seaborn", "seaborn", "declared, not imported by any module"),
 ]
 
 OK = "  ok  "
@@ -56,26 +67,42 @@ FAIL = " FAIL "
 WARN = " warn "
 
 
+# This project's environment is installed under 3.13. 3.11 is NOT present on
+# this machine, and the default `python` on PATH is a bare 3.14 with none of
+# the project's dependencies -- which surfaces as ModuleNotFoundError deep in
+# a pipeline script rather than as an obvious wrong-interpreter error.
+SUPPORTED_PYTHON = (3, 13)
+
+
 def check_python() -> bool:
-    major, minor = sys.version_info[:2]
-    good = (major, minor) == (3, 11)
-    print(f"[{OK if good else WARN}] python {platform.python_version()}")
+    version = sys.version_info[:2]
+    good = version == SUPPORTED_PYTHON
+    print(f"[{OK if good else WARN}] python {platform.python_version()} ({sys.executable})")
     if not good:
-        print("         expected 3.11; several deps have no wheels elsewhere")
+        want = ".".join(str(v) for v in SUPPORTED_PYTHON)
+        print(f"         expected {want}; run scripts as `py -{want} <script>`")
     return good
 
 
 def check_imports() -> list[str]:
+    """Returns the missing REQUIRED packages; optional ones only warn."""
     missing: list[str] = []
-    for module, pip_name in PACKAGES:
+    for module, pip_name in REQUIRED_PACKAGES:
         try:
             mod = importlib.import_module(module)
         except Exception as exc:  # ImportError, but paddle can raise OSError
             missing.append(pip_name)
             print(f"[{FAIL}] {pip_name:<16} {type(exc).__name__}: {exc}")
             continue
-        version = getattr(mod, "__version__", "?")
-        print(f"[{OK}] {pip_name:<16} {version}")
+        print(f"[{OK}] {pip_name:<16} {getattr(mod, '__version__', '?')}")
+
+    for module, pip_name, why in OPTIONAL_PACKAGES:
+        try:
+            mod = importlib.import_module(module)
+        except Exception:
+            print(f"[{WARN}] {pip_name:<16} not installed -- {why}")
+            continue
+        print(f"[{OK}] {pip_name:<16} {getattr(mod, '__version__', '?')}")
     return missing
 
 
@@ -171,7 +198,7 @@ def main() -> int:
     ensure_dirs()
 
     if missing:
-        print(f"missing packages: pip install {' '.join(missing)}")
+        print(f"missing required packages: pip install {' '.join(missing)}")
     if not (py_ok and not missing and det_ok and poppler_ok and llm_ok):
         print("environment INCOMPLETE")
         return 1

@@ -29,16 +29,57 @@ _DESCRIPTIONS = {
         "Construction Contract Milestone", "Bulk Inventory Procurement", "Plant Machinery",
     ],
 }
-KTOSL_TIER = {}  # filled lazily by _tier_for_ktosl
+# Fraction of rows whose tier is redrawn uniformly at random instead of
+# following their amount band. This is the overlap knob: at 0.0 the tier is a
+# deterministic, invertible function of the amount (any "anomaly" a document
+# agent reports would just be that inverse, i.e. fitted to the generator); at
+# 1.0 it degenerates to the KTOSL-hash version this replaced, where
+# descriptions carried no amount information at all. 0.22 leaves genuine
+# low-tier-description/high-amount rows in the corpus at a realistic rate, so
+# desc_amount_mismatch is detectable but not trivially separable.
+TIER_NOISE = 0.22
+TIER_ORDER = ["low", "medium", "high"]
 
 
-def _tier_for_ktosl(ktosl: str) -> str:
-    """Deterministic KTOSL -> value tier so a given GL txn type consistently
-    reads as low/medium/high, rather than random noise per row."""
-    if ktosl not in KTOSL_TIER:
-        tiers = ["low", "medium", "high"]
-        KTOSL_TIER[ktosl] = tiers[hash(ktosl) % 3]
-    return KTOSL_TIER[ktosl]
+def _amount_ranked_tiers(amounts: pd.Series, rng: np.random.Generator) -> np.ndarray:
+    """Assign each row a description value tier from its amount tertile, then
+    redraw TIER_NOISE of them at random.
+
+    Why this replaces the old KTOSL-hash assignment
+    -----------------------------------------------
+    `_tier_for_ktosl` bucketed each GL txn type into low/medium/high by a hash
+    of its code -- stable across runs, but arbitrary with respect to value.
+    Measured on the 311K-row train split that left every description sharing
+    one amount distribution: log10(DMBTR) class means spanned 5.616 (Small
+    Tools) to 5.644 (Travel & Entertainment), a 0.028 spread against a 0.565
+    within-class std -- 0.05 sigma of separation, Spearman(tier, DMBTR)
+    = -0.003.
+
+    Two things followed. The document agent's one load-bearing signal,
+    `amount_atypical_for_description`, was inert by construction (it scored
+    ROC-AUC 0.5005 and the fusion meta-classifier gave it a -3.48
+    coefficient, so dropping it *improved* the ensemble). And
+    desc_amount_mismatch -- nominally the one typology visible from a single
+    document -- was not actually an anomaly in the data: the reconciliation
+    rule that "caught" it (tier == low and DMBTR > q90) is the injector's
+    literal inverse, so its recall of 1.0 measured leakage, not detection.
+
+    Ranking the tier by amount is also just what a real ledger looks like:
+    "Office Supplies" for $3M is the anomaly precisely because office
+    supplies are normally cheap. DMBTR itself is untouched -- it comes from
+    the real Schreyer table and feeds the transaction agent, which never
+    reads `description` (see agents/transaction/features_erp.py's
+    FEATURE_COLUMNS) -- and no typology injector reads descriptions either,
+    so the same rows are selected for every typology as before. Only the
+    `description`/`description_tier` columns move.
+    """
+    # rank-based, not fixed cut points: robust to DMBTR's long right tail, and
+    # gives three equally-populated tiers whatever the raw scale.
+    pct = amounts.rank(method="first", pct=True).to_numpy()
+    idx = np.clip((pct * 3).astype(int), 0, 2)
+    redraw = rng.random(len(idx)) < TIER_NOISE
+    idx[redraw] = rng.integers(0, 3, size=int(redraw.sum()))
+    return np.array(TIER_ORDER, dtype=object)[idx]
 
 
 def add_dates(df: pd.DataFrame, seed: int) -> pd.DataFrame:
@@ -80,9 +121,14 @@ def add_invoice_ids(df: pd.DataFrame, seed: int) -> pd.DataFrame:
 
 
 def add_descriptions(df: pd.DataFrame, seed: int) -> pd.DataFrame:
+    """Line-item description + its value tier, ranked by the row's amount.
+
+    Draws from one rng in a fixed order (tiers first, then the within-tier
+    text choice) so the column is reproducible for a given seed.
+    """
     df = df.copy()
     rng = np.random.default_rng(seed)
-    tiers = df["KTOSL"].map(_tier_for_ktosl)
+    tiers = _amount_ranked_tiers(df["DMBTR"], rng)
     df["description"] = [
         _DESCRIPTIONS[t][rng.integers(len(_DESCRIPTIONS[t]))] for t in tiers
     ]

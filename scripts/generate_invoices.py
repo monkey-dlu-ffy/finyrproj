@@ -47,7 +47,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import LINKED_DIR, RANDOM_SEED, seed_everything
+from config import LINKED_DIR, RANDOM_SEED, seed_everything, stable_hash
 from linked_pipeline.invoices import render_and_degrade, resolve_vendor_name
 
 IMAGE_DIR = LINKED_DIR / "images"
@@ -132,7 +132,10 @@ def main() -> int:
                 n_reused += 1
                 reused_bytes += path.stat().st_size
                 continue
-            seed = int(row_id) + hash(split) % 1000
+            # stable_hash, not hash(): builtin str hashing is randomised per
+            # process, so the degradation seed -- and thus the rendered image --
+            # differed on every run despite the fixed RANDOM_SEED.
+            seed = int(row_id) + stable_hash(split) % 1000
             jobs.append((d, seed, str(path)))
 
         # Drop images for rows no longer selected (e.g. a prior run's random

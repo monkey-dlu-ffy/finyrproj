@@ -56,8 +56,8 @@ numbers below are believable but not proof the OCR step works.
 To reproduce from scratch:
 
 ```powershell
-python scripts\build_linked_corpus.py       # full 533,009-row ledger, synthesized vendor/date/invoice fields, typology injection, split
-python scripts\generate_invoices.py         # renders + degrades invoice images, capped at 20,000 (all fraud rows + a genuine sample), parallelized across 8 processes (~90 min)
+py -3.13 scripts\build_linked_corpus.py       # full 533,009-row ledger, synthesized vendor/date/invoice fields, typology injection, split
+py -3.13 scripts\generate_invoices.py         # renders + degrades invoice images, capped at 20,000 (all fraud rows + a genuine sample), parallelized across 8 processes (~90 min)
 ```
 
 The transaction agent's 5-fold OOF retraining is a Kaggle job at this scale
@@ -70,22 +70,79 @@ automatically instead of retraining in-process. (On a small corpus,
 Kaggle needed there.)
 
 ```powershell
-python scripts\run_reconciliation_agent.py  # rule-based checks; prints per-typology fire rate as a sanity check
-python scripts\run_fusion.py                # 5-fold OOF stacking -> logistic regression meta-classifier
-python scripts\run_xai.py                   # SHAP global/local, deletion faithfulness, seed stability
-python scripts\run_experiments.py           # E1/E2/E3/E4/E7 + bootstrap CIs, from run_fusion.py's output
+py -3.13 scripts\run_reconciliation_agent.py  # rule-based checks; prints per-typology fire rate as a sanity check
+py -3.13 scripts\run_fusion.py                # 5-fold OOF stacking -> logistic regression meta-classifier
+py -3.13 scripts\run_xai.py                   # SHAP global/local, deletion faithfulness, seed stability
+py -3.13 scripts\run_experiments.py           # E1/E2/E3/E4/E7 + bootstrap CIs, from run_fusion.py's output
 ```
 
 Each writes its result to `experiments/*.json` (metrics) or `experiments/*.parquet`
 (scored rows) — read those directly rather than re-running everything to see
 current numbers. Headline result (full 533K-row corpus): fusion test PR-AUC
-0.95, precision 0.98/recall 0.82 at the F1-optimal threshold (or
-precision 0.64/recall 0.97 at the recall-90 threshold); reconciliation alone
-carries most of the signal (E4 ablation: dropping it collapses PR-AUC from
-0.95 to 0.72). Transaction-only (E1) improved sharply with more data
-(PR-AUC ~0.15 -> 0.71) — most of the 5 typologies still aren't purely
-numeric-feature-visible, but the model now has enough rows to learn what
-signal does exist.
+0.789 (95% CI 0.772-0.806), precision 0.81/recall 0.83 at the F1-optimal
+threshold (or precision 0.67/recall 0.95 at the recall-90 threshold);
+reconciliation carries most of the signal (E4 ablation: dropping it takes
+PR-AUC from 0.789 to 0.727, and ROC-AUC from 0.770 to 0.656).
+Transaction-only (E1) improved sharply with more data (PR-AUC ~0.15 -> 0.688)
+— most of the 5 typologies still aren't purely numeric-feature-visible, but
+the model now has enough rows to learn what signal does exist.
+
+### The document agent was blind because of the *generator*, not the agent
+
+Worth recording, because the fix was one function away from where the
+symptom appeared. The document agent used to score test ROC-AUC 0.5005 --
+chance -- and the fusion meta-classifier gave it a **negative** coefficient
+(-3.48), i.e. it was worse than useless; the `no_document` ablation beat the
+full framework.
+
+Rewriting the agent's scoring (grading the score instead of summing booleans,
+replacing a `% 1000 == 0` round-amount test with a multi-scale digit check)
+did not move the number at all, because the corpus contained no
+single-document signal to find. `linked_pipeline/synth.py::_tier_for_ktosl`
+assigned each line item's value tier from a *hash of its GL transaction type*,
+so descriptions carried no information about amount: on 311K train genuine
+rows, log10(DMBTR) class means spanned 5.616 to 5.644 against a 0.565
+within-class std -- 0.05 sigma of separation, Spearman(tier, DMBTR) = -0.003.
+"Office Supplies" for $3M was statistically indistinguishable from "Plant
+Machinery" for $3M, so `amount_atypical_for_description` -- the agent's one
+load-bearing feature -- measured a fraud/genuine lift of 1.17, and
+`desc_amount_mismatch`, nominally the one typology visible from a single
+document, was not actually an anomaly in the data. The reconciliation rule
+that "caught" it (`tier == low and DMBTR > q90`) is the injector's literal
+inverse, so its recall of 1.0 was measuring leakage, not detection.
+
+`_amount_ranked_tiers` now assigns the tier from the row's amount tertile with
+`TIER_NOISE = 0.22` of rows redrawn at random. The noise is the point: at 0.0
+the tier would be an invertible function of the amount and any "anomaly" the
+agent reported would just be that inverse. `DMBTR` is untouched, and no
+typology injector reads descriptions, so the rebuild reproduced identical
+splits, vendor assignments and typology counts -- only `description` and
+`description_tier` moved.
+
+| | before | after |
+|---|---|---|
+| `amount_atypical_for_description` lift | 1.17 | 5.47 |
+| E2 document-only ROC-AUC | 0.500 | 0.594 (CI 0.580-0.608) |
+| document coefficient in fusion | -3.48 | +2.96 |
+| E4 `no_reconciliation` PR-AUC | 0.687 | 0.727 |
+| E7 `threshold_split` recall | 0.070 | 0.204 |
+
+Two honest caveats. Per-typology, the agent moved only on
+`desc_amount_mismatch` (ROC-AUC 0.853) and, unfitted, `threshold_split`
+(0.618); `altered_amount`, `duplicate_invoice` and `ghost_vendor` stay at
+~0.50, which is correct -- they are ledger/cross-row disagreements and
+invisible to a single document by construction. And the agent is now largely
+*redundant* with reconciliation rather than additive: `no_document` still
+edges the full framework on PR-AUC (0.792 vs 0.789, CIs heavily overlapping)
+while losing on ROC-AUC (0.767 vs 0.770). The defensible claim is that the
+document agent went from actively harmful to independently informative, not
+that it lifted the ensemble.
+
+**Not re-rendered:** the 20,000 invoice images predate this change, so the
+description line printed on them is stale (every other field is unaffected).
+`scripts/generate_invoices.py` is idempotent on row selection but reuses any
+image file that already exists, so a refresh means deleting
+`data/linked/images/{train,val,test}/` first.
 
 **Gotcha found only at full scale:** `agents/transaction/features_erp.py`'s
 categorical columns (`WAERS/BUKRS/KTOSL/PRCTR/BSCHL/HKONT`) used to infer
@@ -102,34 +159,63 @@ To view the dashboard:
 
 ```powershell
 # terminal 1
-python -m uvicorn dashboard.api:app --port 8811
+py -3.13 -m uvicorn dashboard.api:app --port 8811
 # terminal 2
-python -m streamlit run dashboard\app.py
+py -3.13 -m streamlit run dashboard\app.py
 ```
 
 Then open `http://localhost:8501`. Sidebar filters by risk tier; click a
-case in the left panel to see its invoice image, agent scores, fired
-reconciliation rules, and an LLM-generated narrative (first view per case is
-slow — ~30-60s to generate, then cached). Accept/Reject/Escalate buttons log
+case in the left panel to see its invoice image, agent scores, its full
+ledger row (BELNR included), fired reconciliation rules, and an LLM-generated
+narrative (first view per case is slow — ~30-60s to generate, then cached).
+A `duplicate_invoice` case additionally shows the entry it duplicates as an
+aligned field-by-field diff plus both invoice images, so the reviewer can see
+what matches (invoice no, vendor) against what doesn't (BELNR, posting date). Accept/Reject/Escalate buttons log
 to an append-only SQLite audit log (`experiments/audit_log.sqlite3`).
 
 **Known gaps, not fixed:**
 - `threshold_split` typology has no dedicated reconciliation rule (it's a
   cross-invoice grouping pattern; no single-row check catches it) --
-  confirmed this persists at full 533K-row scale (13.7% recall, E7), so it
-  isn't a small-sample artifact; more same-vendor/same-week density didn't
-  organically fix it the way it might have
+  confirmed this persists at full 533K-row scale, so it isn't a small-sample
+  artifact; more same-vendor/same-week density didn't organically fix it the
+  way it might have. Recall is 20.4% (E7), up from 7.0% only as a side effect
+  of the document agent's amount-vs-description check, which nothing aimed at
+  this typology -- a dedicated same-vendor/same-week aggregation rule is still
+  the missing piece
 - Document agent's text-risk is keyword/rule-based, not the spec's
-  fine-tuned sentence-transformer classifier
+  fine-tuned sentence-transformer classifier. Its `vague_description`
+  (lift 1.03) and `missing_po` (lift 0.88) features still carry no signal and
+  are display-only; `low_extraction_confidence` cannot fire at all until real
+  OCR replaces the ground-truth fast path
 - No LIME baseline (XAI has SHAP only), no LayoutLMv3 fine-tuning on DocILE,
   no auditor survey, no demo video, no formal write-up
 
 ## Setup
 
-Python **3.11** (not 3.13 — several pinned deps lack 3.13 wheels).
+Python **3.13**. Run every script as `py -3.13 <script>`, not `python`:
 
 ```powershell
-py -3.11 -m venv .venv
+py -3.13 scripts\run_fusion.py
+```
+
+**This matters more than it looks.** `python` on PATH resolves to a bare 3.14
+install with none of the project's dependencies, so `run_fusion.py`,
+`run_reconciliation_agent.py`, `generate_invoices.py` and `dashboard/api.py`
+all die on `ModuleNotFoundError` for rapidfuzz / reportlab / fastapi /
+pdf2image. That reads as broken project code rather than the wrong
+interpreter, which is exactly how it wastes an afternoon. Confirm which one
+you are on:
+
+```powershell
+py -0                                   # lists installed interpreters
+py -3.13 -c "import rapidfuzz, fastapi, reportlab; print('ok')"
+```
+
+The dependencies are installed directly into the 3.13 interpreter here, not a
+virtualenv — there is no `.venv` in this repo. For a clean install elsewhere:
+
+```powershell
+py -3.13 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip setuptools wheel
 
@@ -143,14 +229,27 @@ pip install -r requirements.txt
 Verify:
 
 ```powershell
-python verify_env.py
+py -3.13 verify_env.py
 ```
+
+### Declared but not installed locally
+
+`requirements.txt` is intent, and five of its entries are absent from the
+working 3.13 environment. None are on the local pipeline path, so
+`verify_env.py` reports them as warnings rather than failures:
+
+| Package | Why it's absent |
+|---|---|
+| `paddlepaddle`, `paddleocr` | OCR runs on Kaggle (see "Document pipeline"); needed locally only by `experiments/smoke_document.py`, which is why that script does not run here |
+| `lightgbm` | declared, but the transaction agent is xgboost + IsolationForest |
+| `sqlalchemy` | declared, but the audit log uses stdlib `sqlite3` |
+| `seaborn` | declared, not imported by any module |
 
 ### System dependencies (not pip-installable)
 
 | Dependency | Needed by | Install |
 |---|---|---|
-| **poppler** | `pdf2image` | `winget install oschwartz10612.Poppler`, then add its `Library\bin` to `PATH` |
+| **poppler** | `pdf2image` | `winget install oschwartz10612.Poppler`, then add its `Library\bin` to `PATH` (already installed and on PATH here) |
 | **Ollama** | coordinator agent | `winget install Ollama.Ollama` |
 
 ## Reproducibility contract
@@ -216,8 +315,8 @@ call behind a dashboard interaction; precompute narratives in a batch job and
 serve them from cache.
 
 ```powershell
-python experiments/bench_llm.py                  # tok/s per model
-python experiments/probe_llm_determinism.py      # is output reproducible?
+py -3.13 experiments/bench_llm.py                  # tok/s per model
+py -3.13 experiments/probe_llm_determinism.py      # is output reproducible?
 ```
 
 ### Pulling a model on a flaky link

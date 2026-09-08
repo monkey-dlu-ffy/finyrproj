@@ -33,7 +33,7 @@ from sklearn.model_selection import StratifiedKFold
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from agents.document.extract import DocumentAgent
+from agents.document.extract import DocumentAgent, fit_document_stats
 from agents.reconciliation.rules import ReconciliationAgent
 from agents.transaction.features_erp import add_features, build_xy, fit_category_levels, fit_vendor_account_stats
 from agents.transaction.model_erp import TransactionAgent
@@ -100,7 +100,9 @@ def main() -> int:
     recon_agent = ReconciliationAgent(
         vendor_master_ids=set(vendor_master["vendor_id"]), high_amount_threshold=high_amount_threshold
     )
-    doc_agent = DocumentAgent()
+    # Per-description amount baseline, fit on train genuine rows only -- without
+    # it the document agent's one load-bearing signal is inert (see its docstring).
+    doc_agent = DocumentAgent(stats=fit_document_stats(splits["train"]))
 
     external_txn_scores = None
     full_agent = None

@@ -1,48 +1,48 @@
 {
   "seed": 42,
-  "operating_threshold": 0.25,
+  "operating_threshold": 1.0,
   "val": {
-    "pr_auc": 0.05548157115953726,
-    "roc_auc": 0.6297525819997731,
+    "pr_auc": 0.027928820659019717,
+    "roc_auc": 0.6446555400662906,
     "operating_point": {
-      "threshold": 0.25,
-      "precision": 0.25,
-      "recall": 0.05555555555555555,
+      "threshold": 1.0,
+      "precision": 1.0,
+      "recall": 0.0006613756613756613,
       "tp": 1,
-      "fp": 3,
-      "fn": 17
+      "fp": 0,
+      "fn": 1511
     }
   },
   "test": {
-    "pr_auc": 0.02433371958285052,
-    "roc_auc": 0.5701932858596135,
+    "pr_auc": 0.032787365135481,
+    "roc_auc": 0.6421832710643057,
     "operating_point": {
-      "threshold": 0.25,
+      "threshold": 1.0,
       "precision": 0.0,
       "recall": 0.0,
       "tp": 0,
-      "fp": 0,
-      "fn": 21
+      "fp": 1,
+      "fn": 2917
     },
     "recall_by_typology": {
       "duplicate_invoice": {
-        "n": 6,
+        "n": 548,
         "recall": 0.0
       },
       "ghost_vendor": {
-        "n": 8,
+        "n": 698,
         "recall": 0.0
       },
       "threshold_split": {
-        "n": 0,
-        "recall": NaN
+        "n": 612,
+        "recall": 0.0
       },
       "desc_amount_mismatch": {
-        "n": 5,
+        "n": 521,
         "recall": 0.0
       },
       "altered_amount": {
-        "n": 2,
+        "n": 538,
         "recall": 0.0
       }
     }

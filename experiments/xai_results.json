@@ -1,31 +1,31 @@
 {
   "global_importance": {
-    "vendor_frequency_rank": 2.220799684524536,
-    "amount_zscore_by_vendor": 0.7350305318832397,
-    "iforest_score": 0.3380967378616333,
-    "amount_to_vendor_median_ratio": 0.3216942846775055,
-    "DMBTR": 0.16392457485198975,
-    "benford_first_digit_deviation": 0.09721693396568298,
-    "amount_zscore_by_account": 0.07213907688856125,
-    "BUKRS": 0.039342936128377914,
-    "PRCTR": 0.03924759104847908,
-    "txn_count_7d_vendor": 0.00583368306979537,
-    "KTOSL": 0.0007122089737094939,
-    "HKONT": 0.00043679506052285433,
-    "hour_of_day": 0.00012613978469744325,
-    "WAERS": 9.219082858180627e-05,
+    "vendor_frequency_rank": 3.2948193550109863,
+    "amount_zscore_by_vendor": 0.8207675218582153,
+    "amount_to_vendor_median_ratio": 0.35232970118522644,
+    "iforest_score": 0.34479111433029175,
+    "DMBTR": 0.19336527585983276,
+    "PRCTR": 0.055905405431985855,
+    "amount_zscore_by_account": 0.050640277564525604,
+    "BUKRS": 0.048258304595947266,
+    "benford_first_digit_deviation": 0.025945575907826424,
+    "txn_count_7d_vendor": 0.007528467569500208,
+    "WAERS": 0.0018304992699995637,
+    "HKONT": 0.0017039395170286298,
+    "hour_of_day": 0.0006594571750611067,
+    "KTOSL": 0.0005240746540948749,
+    "posting_lag_days": 0.0005132241640239954,
+    "days_since_last_vendor_txn": 0.0004602317058015615,
     "is_weekend": 0.0,
-    "posting_lag_days": 0.0,
-    "days_since_last_vendor_txn": 0.0,
     "is_round_amount": 0.0,
     "BSCHL": 0.0
   },
   "faithfulness": {
-    "mean_score_drop_shap_topk": 0.0,
-    "mean_score_drop_random_control": 0.0013332328526303172
+    "mean_score_drop_shap_topk": 9.166574699293051e-08,
+    "mean_score_drop_random_control": 0.0014247376238927245
   },
   "stability": {
-    "mean_jaccard_seed0_vs_seed1": 0.9478333554269217,
+    "mean_jaccard_seed0_vs_seed1": 0.9619942409379465,
     "n_seeds_compared": 3
   },
   "local_example": {
@@ -35,27 +35,27 @@
       {
         "feature": "vendor_frequency_rank",
         "value": 147.0,
-        "shap": 2.3802878856658936
+        "shap": 3.408339023590088
       },
       {
         "feature": "amount_zscore_by_vendor",
         "value": 0.0,
-        "shap": 0.7967941761016846
+        "shap": 0.8767903447151184
       },
       {
         "feature": "iforest_score",
-        "value": 0.12659179247159869,
-        "shap": 0.5191215872764587
+        "value": 0.12807735273116516,
+        "shap": 0.6028695702552795
       },
       {
         "feature": "amount_to_vendor_median_ratio",
         "value": 1.0,
-        "shap": 0.3222784399986267
+        "shap": 0.38930976390838623
       },
       {
-        "feature": "BUKRS",
-        "value": "C25",
-        "shap": -0.17199529707431793
+        "feature": "DMBTR",
+        "value": 284894.83,
+        "shap": -0.20110277831554413
       }
     ]
   }

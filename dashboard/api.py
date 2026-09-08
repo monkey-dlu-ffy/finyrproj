@@ -28,6 +28,18 @@ from agents.coordinator.narrative import CoordinatorAgent
 from config import EXPERIMENTS_DIR, LINKED_DIR
 
 DB_PATH = EXPERIMENTS_DIR / "audit_log.sqlite3"
+
+# The ledger columns a reviewer needs to judge a case, in display order. The
+# dashboard shows the actual dataset row -- BELNR (the SAP document number)
+# included -- rather than the manifest's summary, because a duplicate case is
+# only reviewable against the *entry* it duplicates: same invoice_number and
+# vendor, different BELNR/posting_date. The manifest carries neither BELNR nor
+# the posting dates, so it can't answer that on its own.
+LEDGER_DISPLAY_COLS = [
+    "BELNR", "vendor_id", "invoice_number", "po_number", "description",
+    "description_tier", "posting_date", "doc_date", "DMBTR", "invoice_amount",
+    "is_fraud", "typology",
+]
 app = FastAPI(title="fraud-audit dashboard API")
 
 _state: dict = {}
@@ -46,13 +58,64 @@ def _load_state() -> dict:
     if len(recon):
         recon = recon.loc[recon["split"] == "test"]
 
+    # Loaded once, not per request: /case/{id} previously re-read the whole
+    # image manifest from parquet on every call. Only LEDGER_DISPLAY_COLS are
+    # read -- the full 533K-row ledger at 20 columns is a needless resident
+    # cost on this machine, and nothing here needs the ERP feature columns.
+    ledger = {}
+    for split in ("train", "val", "test"):
+        part = pd.read_parquet(LINKED_DIR / f"{split}.parquet", columns=LEDGER_DISPLAY_COLS)
+        # row_id is the positional index each split.parquet was written with
+        # (reset_index(drop=True)), which is what recon evidence cites.
+        ledger[split] = part
+    manifest = pd.read_parquet(LINKED_DIR / "images" / "manifest.parquet")
+
     fusion_results = json.loads((EXPERIMENTS_DIR / "fusion_results.json").read_text())
+    _state["ledger"] = ledger
+    # keyed across ALL splits: a duplicate's original is normally in the same
+    # split (pairs share a vendor, and splitting is vendor-disjoint) but not
+    # always -- 2 of 560 test duplicates cite a row in another split.
+    _state["image_path_by_key"] = dict(
+        zip(zip(manifest["split"], manifest["row_id"]), manifest["image_path"])
+    )
+    # The ledger stores vendor_id; the human-readable name is resolved once at
+    # render time and only recorded in the manifest, so carry it across for
+    # rows that have one.
+    _state["image_vendor_name"] = dict(
+        zip(zip(manifest["split"], manifest["row_id"]), manifest["vendor_name"])
+    )
     _state["meta_df"] = meta_df.set_index("row_id")
     _state["recon_df"] = recon.set_index("row_id") if len(recon) else recon
     _state["threshold"] = fusion_results["f1_threshold"]
     _state["coordinator"] = CoordinatorAgent()
     _state["narrative_cache"] = {}
     return _state
+
+
+def _ledger_entry(split: str, row_id: int) -> dict | None:
+    """The dataset row itself, as shown on the dashboard. `image_path` is None
+    when the row wasn't part of the imaged subset -- the fields still resolve,
+    so a case is never left with nothing to show."""
+    state = _load_state()
+    part = state["ledger"].get(split)
+    if part is None or row_id not in part.index:
+        return None
+    row = part.loc[row_id]
+    entry = {"row_id": int(row_id), "split": split}
+    for col in LEDGER_DISPLAY_COLS:
+        value = row[col]
+        if col in ("posting_date", "doc_date"):
+            entry[col] = str(pd.Timestamp(value).date())
+        elif col in ("DMBTR", "invoice_amount"):
+            entry[col] = float(value)
+        elif col in ("is_fraud",):
+            entry[col] = int(value)
+        elif value is None or (not isinstance(value, str) and pd.isna(value)):
+            entry[col] = None
+        else:
+            entry[col] = str(value)
+    entry["image_path"] = state["image_path_by_key"].get((split, int(row_id)))
+    return entry
 
 
 def _db() -> sqlite3.Connection:
@@ -126,43 +189,44 @@ def get_case(row_id: int):
     if len(state["recon_df"]) and row_id in state["recon_df"].index:
         recon_evidence = state["recon_df"].loc[row_id, "recon_evidence"]
 
-    manifest = pd.read_parquet(LINKED_DIR / "images" / "manifest.parquet")
-    manifest = manifest.loc[manifest["split"] == "test"].set_index("row_id")
-    doc_fields = {}
-    image_path = None
-    if row_id in manifest.index:
-        m = manifest.loc[row_id]
-        doc_fields = {
-            "vendor_name": m["vendor_name"],
-            "invoice_number": m["invoice_number"],
-            "invoice_amount": m["invoice_amount"],
-            "ledger_amount": m["ledger_amount"],
-        }
-        image_path = m["image_path"]
+    # The case's own dataset row, BELNR included. Sourced from the ledger
+    # rather than the image manifest so a case still renders its identifying
+    # fields when it has no image, and so the document number is available at
+    # all -- the manifest never carried BELNR.
+    case_entry = _ledger_entry("test", row_id)
+    image_path = case_entry["image_path"] if case_entry else None
+    doc_fields = {
+        "vendor_name": case_entry["vendor_id"] if case_entry else None,
+        "invoice_number": case_entry["invoice_number"] if case_entry else None,
+        "invoice_amount": case_entry["invoice_amount"] if case_entry else None,
+        "ledger_amount": case_entry["DMBTR"] if case_entry else None,
+    }
+    if case_entry:
+        vendor_name = state["image_vendor_name"].get(("test", row_id))
+        if vendor_name:
+            doc_fields["vendor_name"] = vendor_name
+            case_entry["vendor_name"] = vendor_name
 
-    # duplicate_invoice_number's evidence cites the original ledger entry
-    # (BELNR/vendor/date/amount) -- if that row also has a rendered image
-    # (scripts/generate_invoices.py guarantees this for every duplicate
-    # pair), surface it so the dashboard can show the original invoice
-    # itself, not just its identifying fields. Duplicate pairs always share
-    # a vendor (see linked_pipeline/typologies.py::inject_duplicate_invoice),
-    # and vendor-disjoint splitting keeps a vendor's rows in one split, so
-    # the original is always in this same "test" manifest when present.
+    # duplicate_invoice_number's evidence cites the entry this case duplicates
+    # by (split, row_id) -- resolve it to that full dataset row so the two can
+    # be read side by side. Pairs share an invoice_number and vendor and differ
+    # in BELNR/posting_date, which is the whole of the finding, so citing the
+    # BELNR alone (as this did) left the reviewer unable to see it.
     duplicate_original = None
     for e in recon_evidence:
         if e.get("type") == "duplicate_invoice_number" and e.get("matches"):
             match = e["matches"][0]
-            orig_row_id = match.get("row_id")
-            if orig_row_id is not None and orig_row_id in manifest.index:
-                om = manifest.loc[orig_row_id]
-                duplicate_original = {
-                    "row_id": int(orig_row_id),
-                    "image_path": om["image_path"],
-                    "vendor_name": om["vendor_name"],
-                    "invoice_number": om["invoice_number"],
-                    "invoice_amount": om["invoice_amount"],
-                    "ledger_amount": om["ledger_amount"],
-                }
+            orig_row_id, orig_split = match.get("row_id"), match.get("split")
+            if orig_row_id is not None and orig_split is not None:
+                duplicate_original = _ledger_entry(orig_split, int(orig_row_id))
+                if duplicate_original is not None:
+                    name = state["image_vendor_name"].get((orig_split, int(orig_row_id)))
+                    if name:
+                        duplicate_original["vendor_name"] = name
+            if duplicate_original is None:
+                # Pre-pointer evidence, or a row outside the loaded splits:
+                # fall back to what the rule itself recorded.
+                duplicate_original = {**match, "image_path": None}
             break
 
     if row_id not in state["narrative_cache"]:
@@ -177,6 +241,7 @@ def get_case(row_id: int):
         "recon_evidence": recon_evidence,
         "doc_fields": doc_fields,
         "image_path": image_path,
+        "case_entry": case_entry,
         "duplicate_original": duplicate_original,
         "narrative": state["narrative_cache"][row_id],
     }
