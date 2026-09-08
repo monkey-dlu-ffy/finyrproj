@@ -195,11 +195,20 @@ def get_case(row_id: int):
     # all -- the manifest never carried BELNR.
     case_entry = _ledger_entry("test", row_id)
     image_path = case_entry["image_path"] if case_entry else None
+    # document_number/posting_date are here so the coordinator can tell THIS
+    # entry from the one it duplicates. Without them the only BELNR in the
+    # prompt was the other row's (it appears in the duplicate rule's detail
+    # string), and the narrative attributed that document number and this
+    # case's amount to the same entry. The grounding check did not catch it:
+    # it verifies every number traces back to the evidence, not that each is
+    # attached to the right row.
     doc_fields = {
+        "document_number": case_entry["BELNR"] if case_entry else None,
         "vendor_name": case_entry["vendor_id"] if case_entry else None,
         "invoice_number": case_entry["invoice_number"] if case_entry else None,
         "invoice_amount": case_entry["invoice_amount"] if case_entry else None,
         "ledger_amount": case_entry["DMBTR"] if case_entry else None,
+        "posting_date": case_entry["posting_date"] if case_entry else None,
     }
     if case_entry:
         vendor_name = state["image_vendor_name"].get(("test", row_id))
@@ -229,12 +238,18 @@ def get_case(row_id: int):
                 duplicate_original = {**match, "image_path": None}
             break
 
-    if row_id not in state["narrative_cache"]:
+    narrative = state["narrative_cache"].get(row_id)
+    if narrative is None:
         case = {**row, "recon_evidence": recon_evidence, "doc_fields": doc_fields}
         try:
-            state["narrative_cache"][row_id] = state["coordinator"].narrate(case)
+            narrative = state["coordinator"].narrate(case)
+            state["narrative_cache"][row_id] = narrative
         except Exception as exc:  # Ollama unavailable -- degrade, don't 500 the whole case view
-            state["narrative_cache"][row_id] = {"narrative": f"(narrative unavailable: {exc})", "grounded": False}
+            # Deliberately NOT cached. The cache exists because generation is
+            # slow (~30-60s), not because failures are worth keeping: caching
+            # one meant every case opened while the daemon was down stayed
+            # broken after it came back, until the service was restarted.
+            narrative = {"narrative": f"(narrative unavailable: {exc})", "grounded": False}
 
     return {
         **row,
@@ -243,7 +258,7 @@ def get_case(row_id: int):
         "image_path": image_path,
         "case_entry": case_entry,
         "duplicate_original": duplicate_original,
-        "narrative": state["narrative_cache"][row_id],
+        "narrative": narrative,
     }
 
 
