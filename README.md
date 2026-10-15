@@ -79,10 +79,23 @@ py -3.13 scripts\run_experiments.py           # E1/E2/E3/E4/E7 + bootstrap CIs, 
 Each writes its result to `experiments/*.json` (metrics) or `experiments/*.parquet`
 (scored rows) — read those directly rather than re-running everything to see
 current numbers. Headline result (full 533K-row corpus): fusion test PR-AUC
-0.789 (95% CI 0.772-0.806), precision 0.81/recall 0.83 at the F1-optimal
-threshold (or precision 0.67/recall 0.95 at the recall-90 threshold);
-reconciliation carries most of the signal (E4 ablation: dropping it takes
-PR-AUC from 0.789 to 0.727, and ROC-AUC from 0.770 to 0.656).
+0.854 (95% CI 0.840-0.869), precision 0.84/recall 0.997 (F1 0.911) at the
+F1-optimal threshold -- read against a 0.601 base rate, since the
+document-linked test subset is 60% fraud. Reconciliation carries most of the
+signal (E4 ablation: dropping it takes PR-AUC from 0.854 to 0.727, and ROC-AUC
+from 0.855 to 0.656). Before the split-purchase rule (below) these were PR-AUC
+0.789, precision 0.81/recall 0.83.
+
+`transaction_scores.parquet` was restored from `fusion_scores.parquet`'s
+`transaction_score` column after the Kaggle download went missing locally --
+same Kaggle OOF scores, so fusion reruns without retraining.
+
+544 of the remaining 556 test false positives are the genuine originals of
+duplicated invoices: the duplicate rule flags both postings, and
+`inject_duplicate_invoice` picks which copy is "fraud" without regard to
+posting order (the fraud copy is the later one in only 50.3% of pairs), so no
+rule can separate them on this corpus. Making the duplicate the later posting
+there is the fix; it needs a corpus rebuild + Kaggle retrain.
 Transaction-only (E1) improved sharply with more data (PR-AUC ~0.15 -> 0.688)
 — most of the 5 typologies still aren't purely numeric-feature-visible, but
 the model now has enough rows to learn what signal does exist.
@@ -174,14 +187,13 @@ what matches (invoice no, vendor) against what doesn't (BELNR, posting date). Ac
 to an append-only SQLite audit log (`experiments/audit_log.sqlite3`).
 
 **Known gaps, not fixed:**
-- `threshold_split` typology has no dedicated reconciliation rule (it's a
-  cross-invoice grouping pattern; no single-row check catches it) --
-  confirmed this persists at full 533K-row scale, so it isn't a small-sample
-  artifact; more same-vendor/same-week density didn't organically fix it the
-  way it might have. Recall is 20.4% (E7), up from 7.0% only as a side effect
-  of the document agent's amount-vs-description check, which nothing aimed at
-  this typology -- a dedicated same-vendor/same-week aggregation rule is still
-  the missing piece
+- `threshold_split` is now caught by the reconciliation agent's
+  `split_purchase` rule (2+ postings, same vendor + PO, within 7 days, each
+  under the approval limit, summing over it): E7 recall 20.4% -> 98.4%, firing
+  on 2 of 126,403 genuine test rows. It keys on the shared PO the injector
+  writes, so it mirrors the typology's definition like the other rules do,
+  and it is sensitive to the limit estimate -- see APPROVAL_LIMIT_QUANTILE in
+  `agents/reconciliation/rules.py`
 - Document agent's text-risk is keyword/rule-based, not the spec's
   fine-tuned sentence-transformer classifier. Its `vague_description`
   (lift 1.03) and `missing_po` (lift 0.88) features still carry no signal and

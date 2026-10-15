@@ -22,7 +22,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from agents.reconciliation.rules import ReconciliationAgent
+from agents.reconciliation.rules import APPROVAL_LIMIT_QUANTILE, ReconciliationAgent
 from config import EXPERIMENTS_DIR, LINKED_DIR
 from linked_pipeline.invoices import resolve_vendor_name
 
@@ -57,7 +57,9 @@ def main() -> int:
 
     vendor_master = pd.read_json(LINKED_DIR / "vendor_master.json")
     agent = ReconciliationAgent(
-        vendor_master_ids=set(vendor_master["vendor_id"]), high_amount_threshold=high_amount_threshold
+        vendor_master_ids=set(vendor_master["vendor_id"]),
+        high_amount_threshold=high_amount_threshold,
+        approval_limit=float(train["DMBTR"].quantile(APPROVAL_LIMIT_QUANTILE)),
     )
     full_ledger = pd.concat(
         [
