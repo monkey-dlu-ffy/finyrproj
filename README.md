@@ -60,45 +60,63 @@ py -3.13 scripts\build_linked_corpus.py       # full 533,009-row ledger, synthes
 py -3.13 scripts\generate_invoices.py         # renders + degrades invoice images, capped at 20,000 (all fraud rows + a genuine sample), parallelized across 8 processes (~90 min)
 ```
 
-The transaction agent's 5-fold OOF retraining is a Kaggle job at this scale
-(this machine is RAM-constrained, no GPU) — see
-`scripts/kaggle_train_transaction_erp.py`'s docstring for the upload/push/
-download steps. Drop its output (`transaction_scores.parquet`) into
-`experiments/` before running fusion; `run_fusion.py` picks it up
-automatically instead of retraining in-process. (On a small corpus,
-`scripts/train_transaction_agent.py` still trains locally in seconds — no
-Kaggle needed there.)
+`run_fusion.py` retrains the transaction agent 5x in-process for its OOF
+scores; at full scale that ran locally in a few minutes with ~8GB RAM free
+(the current results were produced that way). If RAM is short, the Kaggle
+path still works — see `scripts/kaggle_train_transaction_erp.py`'s docstring
+for the upload/push/download steps, and drop its output
+(`transaction_scores.parquet`) into `experiments/`; `run_fusion.py` uses it
+instead of retraining whenever that file exists, so delete a stale one after
+a corpus rebuild.
 
 ```powershell
 py -3.13 scripts\run_reconciliation_agent.py  # rule-based checks; prints per-typology fire rate as a sanity check
 py -3.13 scripts\run_fusion.py                # 5-fold OOF stacking -> logistic regression meta-classifier
 py -3.13 scripts\run_xai.py                   # SHAP global/local, deletion faithfulness, seed stability
 py -3.13 scripts\run_experiments.py           # E1/E2/E3/E4/E7 + bootstrap CIs, from run_fusion.py's output
+py -3.13 experiments\split_rule_sensitivity.py  # split-rule ablation, approval-limit sensitivity, remaining-error breakdown
 ```
 
 Each writes its result to `experiments/*.json` (metrics) or `experiments/*.parquet`
 (scored rows) — read those directly rather than re-running everything to see
 current numbers. Headline result (full 533K-row corpus): fusion test PR-AUC
-0.854 (95% CI 0.840-0.869), precision 0.84/recall 0.997 (F1 0.911) at the
-F1-optimal threshold -- read against a 0.601 base rate, since the
-document-linked test subset is 60% fraud. Reconciliation carries most of the
-signal (E4 ablation: dropping it takes PR-AUC from 0.854 to 0.727, and ROC-AUC
-from 0.855 to 0.656). Before the split-purchase rule (below) these were PR-AUC
-0.789, precision 0.81/recall 0.83.
+0.998 (95% CI 0.997-0.999), precision 0.994/recall 0.997 (F1 0.995; 2,883 TP,
+18 FP, 10 FN) at the F1-optimal threshold -- read against a 0.599 base rate,
+since the document-linked test subset is 60% fraud. Reconciliation carries
+nearly all of the signal (E4 ablation: dropping it takes PR-AUC from 0.998 to
+0.720, and ROC-AUC from 0.996 to 0.636; dropping the transaction or document
+agent costs at most 0.003). Label-free agents reach 0.966 on the AuditCopilot
+comparison sample, against 0.603 for AuditCopilot and 0.640 for Isolation
+Forest.
 
-`transaction_scores.parquet` was restored from `fusion_scores.parquet`'s
-`transaction_score` column after the Kaggle download went missing locally --
-same Kaggle OOF scores, so fusion reruns without retraining.
+These numbers are after the duplicate-label correction. Before it, fusion was
+at PR-AUC 0.854, precision 0.84/recall 0.997 (F1 0.911), and 544 of its 556
+test false positives were the genuine originals of duplicated invoices:
+`inject_duplicate_invoice` picked which copy was "fraud" without regard to
+posting order (the fraud copy was the later one in only 50.3% of pairs), so
+the duplicate rule had to flag both. Now the injector always makes the later
+posting (by `posting_date`, then `BELNR`) the duplicate, and the
+`duplicate_invoice_number` rule only fires on a posting that has an earlier
+one -- it fires on 0 genuine rows. This fix came from error analysis on the
+test split, so the paper reports both sets of numbers. The pre-correction
+corpus and score files are kept in `data/backup_pre_dupfix/`.
 
-544 of the remaining 556 test false positives are the genuine originals of
-duplicated invoices: the duplicate rule flags both postings, and
-`inject_duplicate_invoice` picks which copy is "fraud" without regard to
-posting order (the fraud copy is the later one in only 50.3% of pairs), so no
-rule can separate them on this corpus. Making the duplicate the later posting
-there is the fix; it needs a corpus rebuild + Kaggle retrain.
-Transaction-only (E1) improved sharply with more data (PR-AUC ~0.15 -> 0.688)
-— most of the 5 typologies still aren't purely numeric-feature-visible, but
-the model now has enough rows to learn what signal does exist.
+The remaining 18 false positives are all genuine postings with a low-tier
+description on an above-p90 amount (the 22% randomly redrawn tiers), which
+look exactly like `desc_amount_mismatch`; all 10 false negatives are
+`threshold_split` pieces the split-purchase rule misses. Near-perfect scores
+here mostly mean the rules mirror the injectors, not that they would catch
+real fraud this well.
+
+Transaction-only (E1) is PR-AUC 0.683 -- most of the 5 typologies aren't
+purely numeric-feature-visible. That 0.683 is on the 60%-fraud
+document-linked subset, though: on the full 128,764-row test split (2.25%
+fraud) the same model scores PR-AUC 0.038 against a 0.022 base rate (ROC-AUC
+0.614), and no val threshold reaches 50% precision, so
+`train_transaction_agent.py` falls back to the max score (threshold 0.30,
+recall 0.02) -- see `experiments/transaction_erp_metrics.json`. On its own it
+is not a usable detector at the natural fraud rate, and in fusion it adds
+little once reconciliation is present (coefficient 0.29 vs 27.19).
 
 ### The document agent was blind because of the *generator*, not the agent
 

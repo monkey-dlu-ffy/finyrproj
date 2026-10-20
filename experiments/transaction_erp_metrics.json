@@ -1,49 +1,49 @@
 {
   "seed": 42,
-  "operating_threshold": 1.0,
+  "operating_threshold": 0.30481281876564026,
   "val": {
-    "pr_auc": 0.027928820659019717,
-    "roc_auc": 0.6446555400662906,
+    "pr_auc": 0.04785223419698294,
+    "roc_auc": 0.6682684741852555,
     "operating_point": {
-      "threshold": 1.0,
-      "precision": 1.0,
-      "recall": 0.0006613756613756613,
-      "tp": 1,
-      "fp": 0,
-      "fn": 1511
+      "threshold": 0.30481281876564026,
+      "precision": 0.3048128342245989,
+      "recall": 0.03053026245313337,
+      "tp": 57,
+      "fp": 130,
+      "fn": 1810
     }
   },
   "test": {
-    "pr_auc": 0.032787365135481,
-    "roc_auc": 0.6421832710643057,
+    "pr_auc": 0.037841198808930956,
+    "roc_auc": 0.6142718299346428,
     "operating_point": {
-      "threshold": 1.0,
-      "precision": 0.0,
-      "recall": 0.0,
-      "tp": 0,
-      "fp": 1,
-      "fn": 2917
+      "threshold": 0.30481281876564026,
+      "precision": 0.2119205298013245,
+      "recall": 0.02212236432768752,
+      "tp": 64,
+      "fp": 238,
+      "fn": 2829
     },
     "recall_by_typology": {
       "duplicate_invoice": {
-        "n": 548,
-        "recall": 0.0
+        "n": 529,
+        "recall": 0.001890359168241966
       },
       "ghost_vendor": {
-        "n": 698,
-        "recall": 0.0
+        "n": 719,
+        "recall": 0.0013908205841446453
       },
       "threshold_split": {
-        "n": 612,
-        "recall": 0.0
+        "n": 615,
+        "recall": 0.0943089430894309
       },
       "desc_amount_mismatch": {
-        "n": 521,
-        "recall": 0.0
+        "n": 537,
+        "recall": 0.00558659217877095
       },
       "altered_amount": {
-        "n": 538,
-        "recall": 0.0
+        "n": 493,
+        "recall": 0.002028397565922921
       }
     }
   }

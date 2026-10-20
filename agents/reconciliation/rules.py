@@ -107,7 +107,15 @@ class ReconciliationAgent:
         if fuzzy < VENDOR_FUZZY_MIN_SCORE:
             fired.append({"type": "vendor_fuzzy_mismatch", "detail": f"'{ledger_vendor}' vs '{extracted_vendor}'", "value": fuzzy})
 
-        others = [m for m in invoice_index.get(row["invoice_number"], []) if m["BELNR"] != row["BELNR"]]
+        # Only an *earlier* posting of the same invoice number makes this row
+        # a duplicate; the first posting is the legitimate original, so it is
+        # not flagged. BELNR breaks posting-date ties.
+        row_key = (pd.Timestamp(row["posting_date"]), row["BELNR"])
+        others = [
+            m
+            for m in invoice_index.get(row["invoice_number"], [])
+            if m["BELNR"] != row["BELNR"] and (pd.Timestamp(m["posting_date"]), m["BELNR"]) < row_key
+        ]
         if others:
             o = others[0]  # spec's typology only ever pairs two rows; if more exist, lead with the first
             proof = (

@@ -1,61 +1,61 @@
 {
   "global_importance": {
-    "vendor_frequency_rank": 3.2948193550109863,
-    "amount_zscore_by_vendor": 0.8207675218582153,
-    "amount_to_vendor_median_ratio": 0.35232970118522644,
-    "iforest_score": 0.34479111433029175,
-    "DMBTR": 0.19336527585983276,
-    "PRCTR": 0.055905405431985855,
-    "amount_zscore_by_account": 0.050640277564525604,
-    "BUKRS": 0.048258304595947266,
-    "benford_first_digit_deviation": 0.025945575907826424,
-    "txn_count_7d_vendor": 0.007528467569500208,
-    "WAERS": 0.0018304992699995637,
-    "HKONT": 0.0017039395170286298,
-    "hour_of_day": 0.0006594571750611067,
-    "KTOSL": 0.0005240746540948749,
-    "posting_lag_days": 0.0005132241640239954,
-    "days_since_last_vendor_txn": 0.0004602317058015615,
-    "is_weekend": 0.0,
+    "vendor_frequency_rank": 1.8328138589859009,
+    "amount_zscore_by_vendor": 0.8252126574516296,
+    "amount_to_vendor_median_ratio": 0.5160657167434692,
+    "iforest_score": 0.3333010971546173,
+    "DMBTR": 0.1154542937874794,
+    "amount_zscore_by_account": 0.07148361951112747,
+    "benford_first_digit_deviation": 0.060484424233436584,
+    "BUKRS": 0.04290143400430679,
+    "PRCTR": 0.04277735948562622,
+    "txn_count_7d_vendor": 0.004258920904248953,
+    "is_weekend": 0.0008907673181965947,
+    "KTOSL": 0.00046430176007561386,
+    "WAERS": 0.00046285061398521066,
+    "days_since_last_vendor_txn": 0.0002941190032288432,
+    "posting_lag_days": 0.00011600756988627836,
     "is_round_amount": 0.0,
-    "BSCHL": 0.0
+    "hour_of_day": 0.0,
+    "BSCHL": 0.0,
+    "HKONT": 0.0
   },
   "faithfulness": {
-    "mean_score_drop_shap_topk": 9.166574699293051e-08,
-    "mean_score_drop_random_control": 0.0014247376238927245
+    "mean_score_drop_shap_topk": 0.0,
+    "mean_score_drop_random_control": 0.0017232497921213508
   },
   "stability": {
-    "mean_jaccard_seed0_vs_seed1": 0.9619942409379465,
+    "mean_jaccard_seed0_vs_seed1": 0.9603823014714257,
     "n_seeds_compared": 3
   },
   "local_example": {
-    "row_id": 60011,
+    "row_id": 11361,
     "typology": "ghost_vendor",
     "top_features": [
       {
         "feature": "vendor_frequency_rank",
-        "value": 147.0,
-        "shap": 3.408339023590088
+        "value": 148.0,
+        "shap": 1.8792781829833984
       },
       {
         "feature": "amount_zscore_by_vendor",
         "value": 0.0,
-        "shap": 0.8767903447151184
-      },
-      {
-        "feature": "iforest_score",
-        "value": 0.12807735273116516,
-        "shap": 0.6028695702552795
+        "shap": 0.7820655703544617
       },
       {
         "feature": "amount_to_vendor_median_ratio",
         "value": 1.0,
-        "shap": 0.38930976390838623
+        "shap": 0.5801524519920349
+      },
+      {
+        "feature": "iforest_score",
+        "value": 0.11455694861767063,
+        "shap": 0.3857055604457855
       },
       {
         "feature": "DMBTR",
-        "value": 284894.83,
-        "shap": -0.20110277831554413
+        "value": 329515.63,
+        "shap": -0.1328577995300293
       }
     ]
   }

@@ -10,167 +10,167 @@
     "none": 200,
     "threshold_split": 40
   },
-  "test_subset_base_rate": 0.6011953833470733,
-  "fusion_threshold": 0.43,
+  "test_subset_base_rate": 0.5987168874172185,
+  "fusion_threshold": 0.14,
   "agents_label_free_threshold": 0.3,
-  "isolation_forest_train_anomaly_rate": 0.17993259843329945,
+  "isolation_forest_train_anomaly_rate": 0.1784710475369664,
   "complete": true,
   "results": {
     "isolation_forest": {
       "pr_auc": {
-        "point": 0.6981478939601942,
-        "ci_low": 0.6530439878066023,
-        "ci_high": 0.7472331333720588
+        "point": 0.6398380718070081,
+        "ci_low": 0.596152961150583,
+        "ci_high": 0.6923609586784594
       },
       "roc_auc": {
-        "point": 0.6003155639355506,
-        "ci_low": 0.5470857687692839,
-        "ci_high": 0.6536920144840592
+        "point": 0.5227337538886967,
+        "ci_low": 0.46503665960940205,
+        "ci_high": 0.5789400254925683
       },
       "precision": {
-        "point": 0.6223256512273853,
-        "ci_low": 0.6004403533229266,
-        "ci_high": 0.6441984472889685
+        "point": 0.6036841303726345,
+        "ci_low": 0.5758744851012495,
+        "ci_high": 0.6297815075706641
       },
       "recall": {
-        "point": 0.8525882756256428,
-        "ci_low": 0.8069643469317792,
-        "ci_high": 0.8935770911895783
+        "point": 0.78101451780159,
+        "ci_low": 0.7242803750432076,
+        "ci_high": 0.8330629968890425
       },
       "f1": {
-        "point": 0.7194827361751985,
-        "ci_low": 0.692222739148712,
-        "ci_high": 0.7457207419726661
+        "point": 0.6809944829644008,
+        "ci_low": 0.6437030177637687,
+        "ci_high": 0.7115589534887596
       },
       "recall_by_typology": {
-        "duplicate_invoice": 0.75,
-        "ghost_vendor": 0.975,
-        "threshold_split": 0.9,
-        "desc_amount_mismatch": 0.95,
-        "altered_amount": 0.65
+        "duplicate_invoice": 0.7,
+        "ghost_vendor": 0.825,
+        "threshold_split": 0.775,
+        "desc_amount_mismatch": 0.975,
+        "altered_amount": 0.6
       },
-      "genuine_false_positive_rate": 0.78
+      "genuine_false_positive_rate": 0.765
     },
     "auditcopilot": {
       "pr_auc": {
-        "point": 0.6136819950948361,
-        "ci_low": 0.5976497078518636,
-        "ci_high": 0.6289645146556796
+        "point": 0.6031030471674219,
+        "ci_low": 0.5854119490863954,
+        "ci_high": 0.6218355614912154
       },
       "roc_auc": {
-        "point": 0.5254593760713065,
-        "ci_low": 0.49255622214604117,
-        "ci_high": 0.5551832362015773
+        "point": 0.5090485655029382,
+        "ci_low": 0.4715158140338751,
+        "ci_high": 0.5460626296232285
       },
       "precision": {
-        "point": 0.6149030951692219,
-        "ci_low": 0.5972408452406709,
-        "ci_high": 0.6308792194150444
+        "point": 0.6039817714108863,
+        "ci_low": 0.5820341918148335,
+        "ci_high": 0.6253729154107031
       },
       "recall": {
-        "point": 0.9109187521426123,
-        "ci_low": 0.8690756770654782,
-        "ci_high": 0.9433840418237915
+        "point": 0.8330971310058762,
+        "ci_low": 0.778654078810923,
+        "ci_high": 0.8815982544071896
       },
       "f1": {
-        "point": 0.7341968017131213,
-        "ci_low": 0.710881330046486,
-        "ci_high": 0.7540003466460308
+        "point": 0.7002753712354369,
+        "ci_low": 0.6688523685232911,
+        "ci_high": 0.7289910356618703
       },
       "recall_by_typology": {
-        "duplicate_invoice": 0.825,
-        "ghost_vendor": 0.9,
-        "threshold_split": 1.0,
+        "duplicate_invoice": 0.75,
+        "ghost_vendor": 0.825,
+        "threshold_split": 0.875,
         "desc_amount_mismatch": 1.0,
-        "altered_amount": 0.825
+        "altered_amount": 0.7
       },
-      "genuine_false_positive_rate": 0.86
+      "genuine_false_positive_rate": 0.815
     },
     "auditcopilot_signals": {
       "pr_auc": {
-        "point": 0.6298426964308969,
-        "ci_low": 0.6182081681770104,
-        "ci_high": 0.6421715392743934
+        "point": 0.6561929898727537,
+        "ci_low": 0.6391931608165305,
+        "ci_high": 0.674525281924664
       },
       "roc_auc": {
-        "point": 0.557008913267055,
-        "ci_low": 0.5344966360987314,
-        "ci_high": 0.5799999999999998
+        "point": 0.6089215347390247,
+        "ci_low": 0.5787603266505353,
+        "ci_high": 0.6400282362599371
       },
       "precision": {
-        "point": 0.6300151009810205,
-        "ci_low": 0.6183131081966874,
-        "ci_high": 0.6421715392743924
+        "point": 0.6574953399619758,
+        "ci_low": 0.6403755470980622,
+        "ci_high": 0.6764014888413292
       },
       "recall": {
-        "point": 0.9940178265341104,
-        "ci_low": 0.9820534796023312,
-        "ci_high": 1.0
+        "point": 0.9778430694780504,
+        "ci_low": 0.955686138956101,
+        "ci_high": 0.9946854476322157
       },
       "f1": {
-        "point": 0.7712235765059479,
-        "ci_low": 0.7605173221878738,
-        "ci_high": 0.782100437032469
+        "point": 0.7862926201508155,
+        "ci_low": 0.7691529096566937,
+        "ci_high": 0.8018306313093099
       },
       "recall_by_typology": {
         "duplicate_invoice": 1.0,
         "ghost_vendor": 0.975,
-        "threshold_split": 1.0,
+        "threshold_split": 0.925,
         "desc_amount_mismatch": 1.0,
         "altered_amount": 1.0
       },
-      "genuine_false_positive_rate": 0.88
+      "genuine_false_positive_rate": 0.76
     },
     "agents_label_free": {
       "pr_auc": {
-        "point": 0.8262671583175285,
-        "ci_low": 0.7895846877254586,
-        "ci_high": 0.8651497135180163
+        "point": 0.9657831357584081,
+        "ci_low": 0.9348332608158673,
+        "ci_high": 0.990865076884039
       },
       "roc_auc": {
-        "point": 0.8326901354130949,
-        "ci_low": 0.7949163984830298,
-        "ci_high": 0.8696400143555016
+        "point": 0.973830107155202,
+        "ci_low": 0.9517865721137228,
+        "ci_high": 0.9910815049256827
       },
       "precision": {
-        "point": 0.8081155433287484,
-        "ci_low": 0.7780954521990845,
-        "ci_high": 0.8386047039395675
+        "point": 0.9772937082454246,
+        "ci_low": 0.9589283145769667,
+        "ci_high": 0.9924356503624179
       },
       "recall": {
-        "point": 0.8660438806993487,
-        "ci_low": 0.8437178608159068,
-        "ci_high": 0.892835104559479
+        "point": 0.8654251641894228,
+        "ci_low": 0.8422226062910474,
+        "ci_high": 0.8932682336674732
       },
       "f1": {
-        "point": 0.8360775098873096,
-        "ci_low": 0.8141228925276507,
-        "ci_high": 0.8577712428488435
+        "point": 0.9179637551571126,
+        "ci_low": 0.9012392941885776,
+        "ci_high": 0.9346670814184596
       },
       "recall_by_typology": {
         "duplicate_invoice": 1.0,
         "ghost_vendor": 1.0,
         "threshold_split": 1.0,
-        "desc_amount_mismatch": 0.25,
+        "desc_amount_mismatch": 0.275,
         "altered_amount": 1.0
       },
-      "genuine_false_positive_rate": 0.31
+      "genuine_false_positive_rate": 0.03
     },
     "fusion": {
       "pr_auc": {
-        "point": 0.8530344788706321,
-        "ci_low": 0.8139868022553313,
-        "ci_high": 0.890500153815738
+        "point": 0.997414027354627,
+        "ci_low": 0.9944915533044726,
+        "ci_high": 0.9996765277696232
       },
       "roc_auc": {
-        "point": 0.8549649897154605,
-        "ci_low": 0.818546887855673,
-        "ci_high": 0.889335022068906
+        "point": 0.9964754147943311,
+        "ci_low": 0.9924200786380918,
+        "ci_high": 0.9995359488420325
       },
       "precision": {
-        "point": 0.8294354322760426,
-        "ci_low": 0.8028754338585058,
-        "ci_high": 0.8577519664779828
+        "point": 0.986772540913711,
+        "ci_low": 0.9738904448992782,
+        "ci_high": 0.9966600004478596
       },
       "recall": {
         "point": 1.0,
@@ -178,9 +178,9 @@
         "ci_high": 1.0
       },
       "f1": {
-        "point": 0.9067665550176022,
-        "ci_low": 0.8906609792725202,
-        "ci_high": 0.9234300185983934
+        "point": 0.993342237818424,
+        "ci_low": 0.9867725409137111,
+        "ci_high": 0.9983272066594256
       },
       "recall_by_typology": {
         "duplicate_invoice": 1.0,
@@ -189,7 +189,7 @@
         "desc_amount_mismatch": 1.0,
         "altered_amount": 1.0
       },
-      "genuine_false_positive_rate": 0.31
+      "genuine_false_positive_rate": 0.02
     }
   }
 }

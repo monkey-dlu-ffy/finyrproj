@@ -80,6 +80,12 @@ def inject_duplicate_invoice(df: pd.DataFrame, n_instances: int, seed: int) -> p
     while picked < n_instances and i + 1 < len(candidates):
         a, b = candidates[i], candidates[i + 1]
         i += 2
+        # The duplicate is the later posting, as in a real double payment --
+        # the first posting is the legitimate one. Picking b at random made
+        # the fraud copy the later one in only 50.3% of pairs, so no rule
+        # could tell the copies apart. BELNR breaks posting-date ties.
+        if (df.at[b, "posting_date"], df.at[b, "BELNR"]) < (df.at[a, "posting_date"], df.at[a, "BELNR"]):
+            a, b = b, a
         df.at[b, "invoice_number"] = df.at[a, "invoice_number"]
         df.at[b, "vendor_id"] = df.at[a, "vendor_id"]
         df.at[b, "is_fraud"] = 1
