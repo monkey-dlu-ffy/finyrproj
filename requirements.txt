@@ -17,6 +17,7 @@ numpy
 pandas
 pyarrow                 # parquet engine for data/processed
 scipy
+duckdb                  # ad-hoc SQL over the ledger Parquet (ledger_sql.py)
 
 # --- classical ML ------------------------------------------------------
 scikit-learn
