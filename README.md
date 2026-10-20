@@ -99,7 +99,8 @@ posting (by `posting_date`, then `BELNR`) the duplicate, and the
 `duplicate_invoice_number` rule only fires on a posting that has an earlier
 one -- it fires on 0 genuine rows. This fix came from error analysis on the
 test split, so the paper reports both sets of numbers. The pre-correction
-corpus and score files are kept in `data/backup_pre_dupfix/`.
+metrics are in `experiments/*.json` at commit 8a9bf82; to regenerate that
+corpus and its scores, check out 8a9bf82 and re-run the pipeline above.
 
 The remaining 18 false positives are all genuine postings with a low-tier
 description on an above-p90 amount (the 22% randomly redrawn tiers), which
