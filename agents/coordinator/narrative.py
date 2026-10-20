@@ -4,7 +4,13 @@ itself (see agents/coordinator/__init__.py); the fused score from
 scripts/run_fusion.py already made that call.
 
 Fed only: agent scores, top SHAP features (if given), fired reconciliation
-rules, extracted invoice fields. Never the label. num_predict is capped --
+rules, extracted invoice fields. Never the label.
+
+The prompt separates "the entry under review" from the other entries a rule
+cites, because it does not otherwise: on a duplicate_invoice case the model
+attached the duplicated entry's BELNR and posting date to this entry's amount,
+and grounding_check passed it -- that check verifies every number traces back
+to the evidence, not that each number is attached to the right row. num_predict is capped --
 at ~3 tok/s (README, Phase 0 measurement) an uncapped generation is minutes
 long; capping to ~120 tokens keeps a batch of narratives inside this
 session's time budget.
@@ -32,17 +38,17 @@ evidence supports; do not speculate, invent numbers, or guess at causes not list
 
 Case: row {row_id}, typology under review: {typology}
 
+The entry under review. Every field here describes THIS entry:
+{doc_fields}
+
 Agent scores (0=low risk, 1=high risk):
   transaction_agent:    {transaction_score:.2f}
   document_agent:       {document_score:.2f}
   reconciliation_agent: {reconciliation_score:.2f}
   fused risk score:     {fused_score:.2f} (tier: {risk_tier})
 
-Reconciliation rules fired:
+Reconciliation rules fired. These compare the entry above against the ledger and against other entries. Where a rule names a second posting, that posting's document number, date and amount belong to the OTHER entry -- never restate them as if they were the entry under review:
 {recon_evidence}
-
-Extracted document fields:
-{doc_fields}
 
 Write the finding, then a one-line recommended action."""
 

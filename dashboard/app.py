@@ -11,10 +11,68 @@ import base64
 from pathlib import Path
 
 import httpx
+import pandas as pd
 import streamlit as st
 
 API = "http://127.0.0.1:8811"
 LINKED_DIR = Path(__file__).resolve().parent.parent / "data" / "linked"
+
+# Ledger fields shown for a case, in reading order: identity first, then the
+# two amounts (they disagree under altered_amount), then the classification.
+DISPLAY_FIELDS = [
+    ("BELNR", "Document no (BELNR)"),
+    ("row_id", "Dataset row"),
+    ("split", "Split"),
+    ("vendor_name", "Vendor"),
+    ("vendor_id", "Vendor ID"),
+    ("invoice_number", "Invoice no"),
+    ("po_number", "PO no"),
+    ("description", "Description"),
+    ("description_tier", "Description tier"),
+    ("doc_date", "Invoice date"),
+    ("posting_date", "Posting date"),
+    ("DMBTR", "Ledger amount"),
+    ("invoice_amount", "Invoice amount"),
+    ("typology", "Typology"),
+]
+
+
+def _fmt(key: str, value) -> str:
+    if value is None:
+        return "—"
+    if key in ("DMBTR", "invoice_amount"):
+        return f"${float(value):,.2f}"
+    return str(value)
+
+
+def _entry_fields(entry: dict) -> list[tuple[str, str]]:
+    return [(label, _fmt(key, entry.get(key))) for key, label in DISPLAY_FIELDS if key in entry]
+
+
+def ent_label(entry: dict) -> str:
+    row_id = entry.get("row_id")
+    return f"#{row_id}" if row_id is not None else f"BELNR {entry.get('BELNR', '?')}"
+
+
+def _entry_diff(this_entry: dict, other: dict) -> pd.DataFrame:
+    """Both dataset rows in one table, flagging the fields that differ -- a
+    duplicate is defined by what matches (invoice no, vendor) against what
+    doesn't (BELNR, posting date), so both halves are the evidence."""
+    rows = []
+    for key, label in DISPLAY_FIELDS:
+        if key not in this_entry and key not in other:
+            continue
+        a, b = this_entry.get(key), other.get(key)
+        rows.append(
+            {
+                "Field": label,
+                "This case": _fmt(key, a),
+                "Duplicated entry": _fmt(key, b),
+                "": "" if a == b else "differs",
+            }
+        )
+    return pd.DataFrame(rows).set_index("Field")
+
 
 st.set_page_config(page_title="fraud-audit review queue", layout="wide")
 st.title("Fraud Audit — Case Review Queue")
@@ -65,8 +123,12 @@ with right:
                 "reconciliation": round(detail["reconciliation_score"], 3),
             }
         )
-        st.write("**Document fields**")
-        st.json(detail.get("doc_fields", {}))
+        st.write("**Ledger entry (dataset row)**")
+        entry = detail.get("case_entry")
+        if entry:
+            st.table(pd.DataFrame(_entry_fields(entry), columns=["field", "value"]).set_index("field"))
+        else:
+            st.json(detail.get("doc_fields", {}))
 
     st.write("**Reconciliation rules fired**")
     evidence = detail.get("recon_evidence") or []
@@ -84,25 +146,28 @@ with right:
 
     original = detail.get("duplicate_original")
     if original:
-        st.write("**Duplicate invoice — side by side with the original**")
+        st.write("**Duplicate invoice — this entry vs. the entry it duplicates**")
+        # The two rows share invoice_number and vendor and differ in
+        # BELNR/posting_date; differing fields are marked so the reviewer sees
+        # which is which without diffing two JSON blobs by eye.
+        this_entry = detail.get("case_entry") or {}
+        # st.table, not st.dataframe: dataframe scrolls inside a fixed height,
+        # which hid the amount rows -- the two amounts are the point of the
+        # comparison, so every row has to be on screen at once.
+        st.table(_entry_diff(this_entry, original))
+
         dup_col, orig_col = st.columns(2)
-        with dup_col:
-            st.caption(f"This case · #{row_id}")
-            img_path = detail.get("image_path")
-            if img_path and (LINKED_DIR / img_path).exists():
-                st.image(str(LINKED_DIR / img_path), use_container_width=True)
-        with orig_col:
-            st.caption(f"Original · #{original['row_id']}")
-            orig_path = LINKED_DIR / original["image_path"]
-            if orig_path.exists():
-                st.image(str(orig_path), use_container_width=True)
-            st.write(
-                {
-                    "vendor": original["vendor_name"],
-                    "invoice_number": original["invoice_number"],
-                    "amount": original["invoice_amount"],
-                }
-            )
+        for col, label, ent in (
+            (dup_col, f"This case · #{row_id}", this_entry),
+            (orig_col, f"Duplicated entry · {ent_label(original)}", original),
+        ):
+            with col:
+                st.caption(label)
+                path = ent.get("image_path")
+                if path and (LINKED_DIR / path).exists():
+                    st.image(str(LINKED_DIR / path), use_container_width=True)
+                else:
+                    st.info("No invoice image was rendered for this row (it is outside the imaged subset).")
 
     st.write("**Coordinator narrative**")
     narrative = detail.get("narrative", {})

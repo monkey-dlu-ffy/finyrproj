@@ -33,8 +33,8 @@ from sklearn.model_selection import StratifiedKFold
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from agents.document.extract import DocumentAgent
-from agents.reconciliation.rules import ReconciliationAgent
+from agents.document.extract import DocumentAgent, fit_document_stats
+from agents.reconciliation.rules import APPROVAL_LIMIT_QUANTILE, ReconciliationAgent
 from agents.transaction.features_erp import add_features, build_xy, fit_category_levels, fit_vendor_account_stats
 from agents.transaction.model_erp import TransactionAgent
 from config import EXPERIMENTS_DIR, LINKED_DIR, RANDOM_SEED, seed_everything
@@ -98,9 +98,13 @@ def main() -> int:
     genuine_train = splits["train"].loc[splits["train"]["is_fraud"] == 0]
     high_amount_threshold = float(genuine_train["DMBTR"].quantile(0.9))
     recon_agent = ReconciliationAgent(
-        vendor_master_ids=set(vendor_master["vendor_id"]), high_amount_threshold=high_amount_threshold
+        vendor_master_ids=set(vendor_master["vendor_id"]),
+        high_amount_threshold=high_amount_threshold,
+        approval_limit=float(splits["train"]["DMBTR"].quantile(APPROVAL_LIMIT_QUANTILE)),
     )
-    doc_agent = DocumentAgent()
+    # Per-description amount baseline, fit on train genuine rows only -- without
+    # it the document agent's one load-bearing signal is inert (see its docstring).
+    doc_agent = DocumentAgent(stats=fit_document_stats(splits["train"]))
 
     external_txn_scores = None
     full_agent = None

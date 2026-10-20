@@ -1,0 +1,195 @@
+{
+  "base_paper": "AuditCopilot, arXiv 2512.02726",
+  "model": "qwen2.5:3b-instruct",
+  "n_rows_evaluated": 400,
+  "sample_composition": {
+    "altered_amount": 40,
+    "desc_amount_mismatch": 40,
+    "duplicate_invoice": 40,
+    "ghost_vendor": 40,
+    "none": 200,
+    "threshold_split": 40
+  },
+  "test_subset_base_rate": 0.5987168874172185,
+  "fusion_threshold": 0.14,
+  "agents_label_free_threshold": 0.3,
+  "isolation_forest_train_anomaly_rate": 0.1784710475369664,
+  "complete": true,
+  "results": {
+    "isolation_forest": {
+      "pr_auc": {
+        "point": 0.6398380718070081,
+        "ci_low": 0.596152961150583,
+        "ci_high": 0.6923609586784594
+      },
+      "roc_auc": {
+        "point": 0.5227337538886967,
+        "ci_low": 0.46503665960940205,
+        "ci_high": 0.5789400254925683
+      },
+      "precision": {
+        "point": 0.6036841303726345,
+        "ci_low": 0.5758744851012495,
+        "ci_high": 0.6297815075706641
+      },
+      "recall": {
+        "point": 0.78101451780159,
+        "ci_low": 0.7242803750432076,
+        "ci_high": 0.8330629968890425
+      },
+      "f1": {
+        "point": 0.6809944829644008,
+        "ci_low": 0.6437030177637687,
+        "ci_high": 0.7115589534887596
+      },
+      "recall_by_typology": {
+        "duplicate_invoice": 0.7,
+        "ghost_vendor": 0.825,
+        "threshold_split": 0.775,
+        "desc_amount_mismatch": 0.975,
+        "altered_amount": 0.6
+      },
+      "genuine_false_positive_rate": 0.765
+    },
+    "auditcopilot": {
+      "pr_auc": {
+        "point": 0.6031030471674219,
+        "ci_low": 0.5854119490863954,
+        "ci_high": 0.6218355614912154
+      },
+      "roc_auc": {
+        "point": 0.5090485655029382,
+        "ci_low": 0.4715158140338751,
+        "ci_high": 0.5460626296232285
+      },
+      "precision": {
+        "point": 0.6039817714108863,
+        "ci_low": 0.5820341918148335,
+        "ci_high": 0.6253729154107031
+      },
+      "recall": {
+        "point": 0.8330971310058762,
+        "ci_low": 0.778654078810923,
+        "ci_high": 0.8815982544071896
+      },
+      "f1": {
+        "point": 0.7002753712354369,
+        "ci_low": 0.6688523685232911,
+        "ci_high": 0.7289910356618703
+      },
+      "recall_by_typology": {
+        "duplicate_invoice": 0.75,
+        "ghost_vendor": 0.825,
+        "threshold_split": 0.875,
+        "desc_amount_mismatch": 1.0,
+        "altered_amount": 0.7
+      },
+      "genuine_false_positive_rate": 0.815
+    },
+    "auditcopilot_signals": {
+      "pr_auc": {
+        "point": 0.6561929898727537,
+        "ci_low": 0.6391931608165305,
+        "ci_high": 0.674525281924664
+      },
+      "roc_auc": {
+        "point": 0.6089215347390247,
+        "ci_low": 0.5787603266505353,
+        "ci_high": 0.6400282362599371
+      },
+      "precision": {
+        "point": 0.6574953399619758,
+        "ci_low": 0.6403755470980622,
+        "ci_high": 0.6764014888413292
+      },
+      "recall": {
+        "point": 0.9778430694780504,
+        "ci_low": 0.955686138956101,
+        "ci_high": 0.9946854476322157
+      },
+      "f1": {
+        "point": 0.7862926201508155,
+        "ci_low": 0.7691529096566937,
+        "ci_high": 0.8018306313093099
+      },
+      "recall_by_typology": {
+        "duplicate_invoice": 1.0,
+        "ghost_vendor": 0.975,
+        "threshold_split": 0.925,
+        "desc_amount_mismatch": 1.0,
+        "altered_amount": 1.0
+      },
+      "genuine_false_positive_rate": 0.76
+    },
+    "agents_label_free": {
+      "pr_auc": {
+        "point": 0.9657831357584081,
+        "ci_low": 0.9348332608158673,
+        "ci_high": 0.990865076884039
+      },
+      "roc_auc": {
+        "point": 0.973830107155202,
+        "ci_low": 0.9517865721137228,
+        "ci_high": 0.9910815049256827
+      },
+      "precision": {
+        "point": 0.9772937082454246,
+        "ci_low": 0.9589283145769667,
+        "ci_high": 0.9924356503624179
+      },
+      "recall": {
+        "point": 0.8654251641894228,
+        "ci_low": 0.8422226062910474,
+        "ci_high": 0.8932682336674732
+      },
+      "f1": {
+        "point": 0.9179637551571126,
+        "ci_low": 0.9012392941885776,
+        "ci_high": 0.9346670814184596
+      },
+      "recall_by_typology": {
+        "duplicate_invoice": 1.0,
+        "ghost_vendor": 1.0,
+        "threshold_split": 1.0,
+        "desc_amount_mismatch": 0.275,
+        "altered_amount": 1.0
+      },
+      "genuine_false_positive_rate": 0.03
+    },
+    "fusion": {
+      "pr_auc": {
+        "point": 0.997414027354627,
+        "ci_low": 0.9944915533044726,
+        "ci_high": 0.9996765277696232
+      },
+      "roc_auc": {
+        "point": 0.9964754147943311,
+        "ci_low": 0.9924200786380918,
+        "ci_high": 0.9995359488420325
+      },
+      "precision": {
+        "point": 0.986772540913711,
+        "ci_low": 0.9738904448992782,
+        "ci_high": 0.9966600004478596
+      },
+      "recall": {
+        "point": 1.0,
+        "ci_low": 1.0,
+        "ci_high": 1.0
+      },
+      "f1": {
+        "point": 0.993342237818424,
+        "ci_low": 0.9867725409137111,
+        "ci_high": 0.9983272066594256
+      },
+      "recall_by_typology": {
+        "duplicate_invoice": 1.0,
+        "ghost_vendor": 1.0,
+        "threshold_split": 1.0,
+        "desc_amount_mismatch": 1.0,
+        "altered_amount": 1.0
+      },
+      "genuine_false_positive_rate": 0.02
+    }
+  }
+}
