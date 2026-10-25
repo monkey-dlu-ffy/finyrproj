@@ -14,9 +14,7 @@ against:
   - every recomputed number is printed beside the saved one, OK or DIFF.
 
 Every metric on the imaged entries is on a sample built to hold ALL frauds
-(scripts/generate_invoices.py), so it is ~60% fraud, not the ledger's ~2%.
-Section 6 estimates precision at the ledger's real rate by reweighting the
-random genuine part of that sample.
+(scripts/generate_invoices.py), so it is ~60% fraud.
 """
 
 from __future__ import annotations
@@ -89,13 +87,6 @@ def average_precision_by_hand(y: np.ndarray, score: np.ndarray) -> float:
     precision = tp / flagged
     recall = tp / t.sum()
     return float(np.sum(np.diff(np.r_[0.0, recall]) * precision))
-
-
-def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
-    p = k / n
-    centre = (p + z * z / (2 * n)) / (1 + z * z / n)
-    half = z * np.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / (1 + z * z / n)
-    return centre - half, centre + half
 
 
 def main() -> int:
@@ -194,39 +185,7 @@ def main() -> int:
     tiers["fraud rate"] = (tiers["fraud"] / tiers["entries"]).round(4)
     print(tiers.round({"min_score": 4, "max_score": 4}).to_string())
 
-    heading("6. Estimated precision at the ledger's real fraud rate (test)")
-    # The genuine images are every duplicate-invoice original in the split plus
-    # a uniform random sample of the other genuine entries
-    # (generate_invoices.py: select_subset). So the random part's false-positive
-    # rate stands for all of the split's other genuine entries.
-    ledger = pd.read_parquet(LINKED_DIR / "test.parquet", columns=["is_fraud", "typology", "invoice_number"])
-    dup_invoices = set(ledger.loc[ledger["typology"] == "duplicate_invoice", "invoice_number"])
-    originals = set(ledger.index[(ledger["is_fraud"] == 0) & ledger["invoice_number"].isin(dup_invoices)])
-    genuine_total = int((ledger["is_fraud"] == 0).sum())
-    genuine_imaged = test.loc[test["is_fraud"] == 0]
-    is_original = genuine_imaged["row_id"].isin(originals)
-    gen_flagged = genuine_imaged["fused_score"] >= fusion["f1_threshold"]
-    fp_originals = int((gen_flagged & is_original).sum())
-    fp_random, n_random = int((gen_flagged & ~is_original).sum()), int((~is_original).sum())
-    others_total = genuine_total - len(originals)
-    tp = int(((test["fused_score"] >= fusion["f1_threshold"]) & (test["is_fraud"] == 1)).sum())
-    lo, hi = wilson(fp_random, n_random)
-    est = {
-        "point": fp_originals + fp_random / n_random * others_total,
-        "low": fp_originals + lo * others_total,
-        "high": fp_originals + hi * others_total,
-    }
-    print(f"  genuine test entries: {genuine_total:,}  ({len(originals):,} duplicate originals, all imaged;")
-    print(f"  {others_total:,} others, of which {n_random:,} were imaged at random)")
-    print(f"  false positives among imaged originals: {fp_originals} of {len(originals)}")
-    print(f"  false positives among the random sample: {fp_random} of {n_random:,} "
-          f"= {fp_random / n_random:.4%} (95% Wilson {lo:.4%} to {hi:.4%})")
-    print(f"  frauds caught: {tp:,} of {int(test['is_fraud'].sum()):,} (every fraud is imaged)")
-    for label in ("point", "low", "high"):
-        fp_est = est[label]
-        print(f"  {label:>5}: ~{fp_est:,.0f} false positives across the test split -> precision {tp / (tp + fp_est):.1%}")
-
-    heading("7. Transaction agent alone, on every test-ledger entry")
+    heading("6. Transaction agent alone, on every test-ledger entry")
     txn = pd.read_parquet(EXPERIMENTS_DIR / "transaction_erp_scores.parquet")
     txn_metrics = json.loads((EXPERIMENTS_DIR / "transaction_erp_metrics.json").read_text())
     y, s = txn["is_fraud"].to_numpy(), txn["score"].to_numpy()
