@@ -47,6 +47,24 @@ N_FOLDS = 5
 EXTERNAL_TXN_SCORES = EXPERIMENTS_DIR / "transaction_scores.parquet"
 
 
+def risk_tier(
+    score: float, f1_threshold: float, recall_90_threshold: float, rule_fired: bool
+) -> str:
+    """Tiers anchored to the two val-selected operating points: high = flagged
+    at both, medium = flagged at only the more permissive one OR a
+    reconciliation rule fired that the fused score discounts, low = neither.
+    Fixed 0.3/0.7 cutoffs left medium empty -- the meta-classifier's scores are
+    near-bimodal (no test row lands in [0.14, 0.8)), so a score band alone
+    holds almost nothing; a fired rule is the one signal left in that gap
+    worth a reviewer's look, even when the stacker overrules it."""
+    lower, upper = sorted((f1_threshold, recall_90_threshold))
+    if score >= upper:
+        return "high"
+    if score >= lower or rule_fired:
+        return "medium"
+    return "low"
+
+
 def load_engineered_splits() -> dict[str, pd.DataFrame]:
     train = pd.read_parquet(LINKED_DIR / "train.parquet")
     val = pd.read_parquet(LINKED_DIR / "val.parquet")
@@ -191,14 +209,12 @@ def main() -> int:
             recall_90_threshold = float(t)
             break
 
-    def tier(score: float) -> str:
-        if score < 0.3:
-            return "low"
-        if score < 0.7:
-            return "medium"
-        return "high"
-
-    meta_df["risk_tier"] = meta_df["fused_score"].map(tier)
+    # Every RULE_WEIGHTS entry is positive, so reconciliation_score > 0 iff a
+    # rule fired.
+    meta_df["risk_tier"] = [
+        risk_tier(s, f1_threshold, recall_90_threshold, r > 0)
+        for s, r in zip(meta_df["fused_score"], meta_df["reconciliation_score"])
+    ]
 
     def summarize(df: pd.DataFrame, threshold: float) -> dict:
         y = df["is_fraud"].to_numpy()
