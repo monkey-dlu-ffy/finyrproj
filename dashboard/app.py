@@ -205,7 +205,7 @@ def _record_dialog(title: str, path: Path, record: dict) -> None:
 st.set_page_config(page_title="fraud-audit review queue", layout="wide")
 st.title("Fraud Audit — Case Review Queue")
 
-tier = st.sidebar.selectbox("Risk tier", ["all", "high", "medium", "low"])
+tier = st.sidebar.selectbox("Risk tier", ["all", "high", "low"])
 page_size = st.sidebar.selectbox("Cases per page", [25, 50, 100, 200], index=2)
 
 # Page resets to 1 whenever the filter or page size changes, so a page number
