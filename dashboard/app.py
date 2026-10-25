@@ -20,6 +20,10 @@ import pandas as pd
 import pyarrow.parquet as pq
 import streamlit as st
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from linked_pipeline.typologies import mask_ghost_vendor_ids
+
 API = "http://127.0.0.1:8811"
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 LINKED_DIR = PROJECT_DIR / "data" / "linked"
@@ -33,6 +37,18 @@ AMOUNT_COLS = ("DMBTR", "WRBTR", "invoice_amount", "ledger_amount")
 # is fraud, so no view on this screen shows them, even though the API's
 # responses and the source files carry them.
 LABEL_COLS = ("typology", "is_fraud")
+
+
+def _masked(value):
+    """`value` with every GHOST-<name> vendor ID swapped for its VND-<5 digits>
+    pseudonym, at any depth -- the ID itself spells out the ghost_vendor label
+    (see LABEL_COLS). Applied to everything the API returns, so every view
+    built from it inherits the mask."""
+    if isinstance(value, dict):
+        return {k: _masked(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_masked(v) for v in value]
+    return mask_ghost_vendor_ids(value)
 
 # Ledger fields shown for a case, in reading order: identity first, then the
 # two amounts (they disagree under altered_amount).
@@ -158,6 +174,9 @@ def _parquet_dialog(path: Path, split: str, row_id: int) -> None:
         .rename_axis("file row")
         .drop(columns=list(LABEL_COLS), errors="ignore")
     )
+    # Read straight from disk, not through the API, so it needs its own mask.
+    for col in df.select_dtypes(include="object").columns:
+        df[col] = df[col].map(mask_ghost_vendor_ids)
     if target is None:
         where = f"no row for {split} row {row_id} in this file"
     elif target in df.index:
@@ -239,7 +258,7 @@ if not total:
 
 n_pages = (total + page_size - 1) // page_size
 page = st.sidebar.number_input("Page", min_value=1, max_value=n_pages, step=1, key="page")
-cases = result["cases"]
+cases = _masked(result["cases"])
 
 
 def _step_page(delta: int) -> None:
@@ -270,7 +289,7 @@ with right:
     st.subheader(f"Case #{row_id}")
 
     with st.spinner("Loading case (first view generates an LLM narrative, ~1min on this machine)..."):
-        detail = httpx.get(f"{API}/case/{row_id}", timeout=180).json()
+        detail = _masked(httpx.get(f"{API}/case/{row_id}", timeout=180).json())
 
     img_left, fields_right = st.columns(2)
     with img_left:

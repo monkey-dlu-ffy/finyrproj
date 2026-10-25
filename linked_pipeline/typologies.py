@@ -15,11 +15,29 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from config import stable_hash
+
 TARGET_FRAUD_RATE = 0.02
 GHOST_VENDOR_NAMES = [
     "Quikpay Trading LLC", "Zenith Overseas Supply", "Rapidline Ventures",
     "Omni Trade Partners", "Blackstone Freight Co", "Starline Import Export",
 ]
+
+
+def mask_ghost_vendor_ids(value):
+    """Swap every GHOST-<name> vendor ID in a string for a neutral
+    VND-<5 digits> pseudonym; anything else passes through unchanged.
+
+    inject_ghost_vendor below writes the label into the ID itself, so whatever
+    a model or a reviewer is shown goes through this first. Stable per ID, so
+    the LLM narrative and the review screen name the same vendor the same way.
+    Same scheme as scripts/run_auditcopilot_comparison.py's vendor masking."""
+    if not isinstance(value, str):
+        return value
+    for name in GHOST_VENDOR_NAMES:
+        vendor_id = f"GHOST-{name}"
+        value = value.replace(vendor_id, f"VND-{stable_hash(vendor_id) % 100_000:05d}")
+    return value
 
 
 def _rng(seed: int) -> np.random.Generator:
