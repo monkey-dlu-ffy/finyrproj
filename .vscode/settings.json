@@ -1,0 +1,13 @@
+{
+    // Code Runner (Run Code, Ctrl+Alt+N): print to the OUTPUT tab, not the
+    // terminal, using the interpreter the pipeline needs. Bare `python` is a
+    // newer version without the dependencies. The Metrics page's "Open in VS Code"
+    // relies on this to show scripts/verify_metrics.py's results in OUTPUT.
+    "code-runner.runInTerminal": false,
+    "code-runner.executorMap": {
+        "python": "py -3.13 -u -X utf8"
+    },
+    "code-runner.clearPreviousOutput": true,
+    "code-runner.showExecutionMessage": true,
+    "code-runner.saveFileBeforeRun": true
+}
