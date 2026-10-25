@@ -4,7 +4,8 @@ itself (see agents/coordinator/__init__.py); the fused score from
 scripts/run_fusion.py already made that call.
 
 Fed only: agent scores, top SHAP features (if given), fired reconciliation
-rules, extracted invoice fields. Never the label.
+rules, extracted invoice fields. Never the label: redact_case() drops the
+label columns, and masks ghost-vendor IDs, which spell the label out.
 
 The prompt separates "the entry under review" from the other entries a rule
 cites, because it does not otherwise: on a duplicate_invoice case the model
@@ -27,16 +28,25 @@ from dataclasses import dataclass
 
 import httpx
 
-from config import LLM_NUM_CTX, LLM_SEED, LLM_TEMPERATURE, OLLAMA_HOST, OLLAMA_MODEL
+from config import LLM_NUM_CTX, LLM_SEED, LLM_TEMPERATURE, OLLAMA_HOST, OLLAMA_MODEL, stable_hash
+from linked_pipeline.typologies import GHOST_VENDOR_NAMES
 
 NUMBER_RE = re.compile(r"-?\d[\d,]*\.?\d*")
 MAX_TOKENS = 130
+
+# Ground truth the case dict carries (it is a fusion_scores row) that must
+# never reach the model. typology was in the prompt itself until this was added.
+LABEL_KEYS = ("typology", "is_fraud")
+# The injector names ghost vendors GHOST-<name>, so the vendor ID is the label
+# in plain text. It reaches the prompt through vendor_absent_from_master's
+# detail, a duplicate's cited vendor, or the vendor_name fallback.
+GHOST_VENDOR_IDS = [f"GHOST-{name}" for name in GHOST_VENDOR_NAMES]
 
 PROMPT_TEMPLATE = """You are a fraud audit coordinator. Summarize the evidence below into a \
 finding of at most {max_words} words for a human reviewer. State only what the \
 evidence supports; do not speculate, invent numbers, or guess at causes not listed here.
 
-Case: row {row_id}, typology under review: {typology}
+Case: row {row_id}
 
 The entry under review. Every field here describes THIS entry:
 {doc_fields}
@@ -53,6 +63,32 @@ Reconciliation rules fired. These compare the entry above against the ledger and
 Write the finding, then a one-line recommended action."""
 
 
+def _vendor_pseudonym(vendor_id: str) -> str:
+    # Same scheme as scripts/run_auditcopilot_comparison.py's vendor masking.
+    return f"VND-{stable_hash(vendor_id) % 100_000:05d}"
+
+
+def _mask(value):
+    if not isinstance(value, str):
+        return value
+    for vendor_id in GHOST_VENDOR_IDS:
+        value = value.replace(vendor_id, _vendor_pseudonym(vendor_id))
+    return value
+
+
+def redact_case(case: dict) -> dict:
+    """The case as the model may see it: no label columns, no vendor ID that
+    names the label. narrate() builds the prompt AND runs the grounding check
+    on this, so a pseudonym the model repeats still counts as grounded."""
+    redacted = {k: v for k, v in case.items() if k not in LABEL_KEYS}
+    redacted["recon_evidence"] = [
+        {**e, "detail": _mask(e.get("detail")), "value": _mask(e.get("value"))}
+        for e in case.get("recon_evidence", [])
+    ]
+    redacted["doc_fields"] = {k: _mask(v) for k, v in case.get("doc_fields", {}).items()}
+    return redacted
+
+
 def _format_evidence(recon_evidence: list[dict]) -> str:
     if not recon_evidence:
         return "  (none fired)"
@@ -67,7 +103,6 @@ def build_prompt(case: dict, max_words: int = 120) -> str:
     return PROMPT_TEMPLATE.format(
         max_words=max_words,
         row_id=case["row_id"],
-        typology=case.get("typology", "unknown"),
         transaction_score=case["transaction_score"],
         document_score=case["document_score"],
         reconciliation_score=case["reconciliation_score"],
@@ -106,7 +141,10 @@ class CoordinatorAgent:
     model: str = OLLAMA_MODEL
 
     def narrate(self, case: dict, max_retries: int = 1) -> dict:
+        case = redact_case(case)
         prompt = build_prompt(case)
+        if "GHOST" in prompt.upper():
+            raise RuntimeError(f"row {case['row_id']}: ghost-vendor label leaked into the prompt after masking")
         for attempt in range(max_retries + 1):
             resp = httpx.post(
                 f"{self.host}/api/generate",
