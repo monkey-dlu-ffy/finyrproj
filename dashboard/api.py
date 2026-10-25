@@ -84,6 +84,10 @@ def _load_state() -> dict:
     _state["image_vendor_name"] = dict(
         zip(zip(manifest["split"], manifest["row_id"]), manifest["vendor_name"])
     )
+    # The full record too: its vendor/invoice/amount fields are what the
+    # document and reconciliation agents read on the ground-truth fast path
+    # (README), so the dashboard shows them as a source document of their own.
+    _state["manifest"] = manifest.set_index(["split", "row_id"])
     _state["meta_df"] = meta_df.set_index("row_id")
     _state["recon_df"] = recon.set_index("row_id") if len(recon) else recon
     _state["threshold"] = fusion_results["f1_threshold"]
@@ -249,6 +253,34 @@ def get_case(row_id: int):
                 duplicate_original = {**match, "image_path": None}
             break
 
+    # Every other ledger entry a fired rule cites -- the posting a duplicate
+    # repeats, the sibling postings of a split purchase -- so the reviewer can
+    # open each one's ledger row and invoice, not just this case's.
+    related_entries = []
+    for e in recon_evidence:
+        cited = [("Duplicated entry", m) for m in e.get("matches") or []]
+        cited += [("Same split purchase", p) for p in e.get("group") or []]
+        for role, m in cited:
+            if m.get("row_id") is None or m.get("split") is None:
+                continue
+            key = (m["split"], int(m["row_id"]))
+            related_entries.append(
+                {
+                    "role": role,
+                    "split": key[0],
+                    "row_id": key[1],
+                    "BELNR": m.get("BELNR"),
+                    "image_path": state["image_path_by_key"].get(key),
+                }
+            )
+
+    manifest_record = None
+    if ("test", row_id) in state["manifest"].index:
+        manifest_record = {
+            k: (v.item() if hasattr(v, "item") else v)
+            for k, v in state["manifest"].loc[("test", row_id)].items()
+        }
+
     narrative = state["narrative_cache"].get(row_id)
     if narrative is None:
         case = {**row, "recon_evidence": recon_evidence, "doc_fields": doc_fields}
@@ -269,6 +301,8 @@ def get_case(row_id: int):
         "image_path": image_path,
         "case_entry": case_entry,
         "duplicate_original": duplicate_original,
+        "related_entries": related_entries,
+        "manifest_record": manifest_record,
         "narrative": narrative,
     }
 
