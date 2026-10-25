@@ -29,9 +29,13 @@ VENDOR_MASTER = LINKED_DIR / "vendor_master.json"
 HIGHLIGHT = "background-color: rgba(255, 191, 0, 0.35)"
 PARQUET_PAGE_SIZE = 100
 AMOUNT_COLS = ("DMBTR", "WRBTR", "invoice_amount", "ledger_amount")
+# The injected ground truth. The reviewer is the one deciding whether a case
+# is fraud, so no view on this screen shows them, even though the API's
+# responses and the source files carry them.
+LABEL_COLS = ("typology", "is_fraud")
 
 # Ledger fields shown for a case, in reading order: identity first, then the
-# two amounts (they disagree under altered_amount), then the classification.
+# two amounts (they disagree under altered_amount).
 DISPLAY_FIELDS = [
     ("BELNR", "Document no (BELNR)"),
     ("row_id", "Dataset row"),
@@ -46,7 +50,6 @@ DISPLAY_FIELDS = [
     ("posting_date", "Posting date"),
     ("DMBTR", "Ledger amount"),
     ("invoice_amount", "Invoice amount"),
-    ("typology", "Typology"),
 ]
 
 
@@ -153,6 +156,7 @@ def _parquet_dialog(path: Path, split: str, row_id: int) -> None:
         .df()
         .set_index("file_row_number")
         .rename_axis("file row")
+        .drop(columns=list(LABEL_COLS), errors="ignore")
     )
     if target is None:
         where = f"no row for {split} row {row_id} in this file"
@@ -161,7 +165,7 @@ def _parquet_dialog(path: Path, split: str, row_id: int) -> None:
     else:
         where = f"this case is file row **{target:,}**, on page {target // PARQUET_PAGE_SIZE + 1:,}"
     st.markdown(
-        f"`{path.relative_to(PROJECT_DIR)}` · {n_rows:,} rows × {len(columns)} columns · "
+        f"`{path.relative_to(PROJECT_DIR)}` · {n_rows:,} rows × {len(df.columns)} columns shown · "
         f"showing file rows {first:,}–{first + len(df) - 1:,} · {where}"
     )
     styled = df.style.apply(lambda r: [HIGHLIGHT if r.name == target else ""] * len(r), axis=1).format(
@@ -257,7 +261,7 @@ with left:
         "Next →", disabled=page >= n_pages, on_click=_step_page, args=(1,), use_container_width=True
     )
     for c in cases:
-        label = f"#{c['row_id']} · {c['typology']} · {c['risk_tier']} ({c['fused_score']:.2f})"
+        label = f"#{c['row_id']} · {c['risk_tier']} ({c['fused_score']:.2f})"
         if st.button(label, key=f"case_{c['row_id']}", use_container_width=True):
             st.session_state["selected"] = c["row_id"]
 
@@ -305,7 +309,9 @@ with right:
         )
     else:
         st.caption("Invoice image: none rendered for this row (it is outside the imaged subset).")
-    manifest_record = detail.get("manifest_record")
+    manifest_record = {
+        k: v for k, v in (detail.get("manifest_record") or {}).items() if k not in LABEL_COLS
+    }
     if manifest_record:
         _doc_row(
             "Invoice fields", LINKED_DIR / "images" / "manifest.parquet",
@@ -345,7 +351,7 @@ with right:
     fusion_record = {
         k: detail.get(k)
         for k in ("row_id", "split", "transaction_score", "document_score",
-                  "reconciliation_score", "fused_score", "risk_tier", "typology", "is_fraud")
+                  "reconciliation_score", "fused_score", "risk_tier")
     }
     _doc_row(
         "Fusion scores", fusion_file, "agent scores and risk tier", f"doc_{row_id}_fusion",
