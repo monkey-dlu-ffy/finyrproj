@@ -78,22 +78,56 @@ st.set_page_config(page_title="fraud-audit review queue", layout="wide")
 st.title("Fraud Audit — Case Review Queue")
 
 tier = st.sidebar.selectbox("Risk tier", ["all", "high", "medium", "low"])
-params = {} if tier == "all" else {"tier": tier}
+page_size = st.sidebar.selectbox("Cases per page", [25, 50, 100, 200], index=2)
+
+# Page resets to 1 whenever the filter or page size changes, so a page number
+# that was valid for "all" can't point past the end of a smaller tier.
+if st.session_state.get("page_key") != (tier, page_size):
+    st.session_state["page_key"] = (tier, page_size)
+    st.session_state["page"] = 1
+
+
+def _fetch_page(page: int) -> dict:
+    params = {"limit": page_size, "offset": (page - 1) * page_size}
+    if tier != "all":
+        params["tier"] = tier
+    return httpx.get(f"{API}/cases", params=params, timeout=10).json()
+
 
 try:
-    cases = httpx.get(f"{API}/cases", params=params, timeout=10).json()
+    result = _fetch_page(st.session_state["page"])
 except httpx.ConnectError:
     st.error(f"Can't reach the API at {API}. Run: uvicorn dashboard.api:app --port 8811")
     st.stop()
 
-if not cases:
+total = result["total"]
+if not total:
     st.info("No cases for this filter.")
     st.stop()
+
+n_pages = (total + page_size - 1) // page_size
+page = st.sidebar.number_input("Page", min_value=1, max_value=n_pages, step=1, key="page")
+cases = result["cases"]
+
+
+def _step_page(delta: int) -> None:
+    # A callback, not an inline assignment: Streamlit forbids writing a
+    # widget's session_state key after the widget has rendered in this run.
+    st.session_state["page"] += delta
 
 left, right = st.columns([1, 1.4])
 
 with left:
-    st.subheader(f"{len(cases)} cases")
+    first = result["offset"] + 1
+    st.subheader(f"{total} cases")
+    st.caption(f"Showing {first}–{first + len(cases) - 1} · page {page} of {n_pages}")
+    prev_col, next_col = st.columns(2)
+    prev_col.button(
+        "← Previous", disabled=page <= 1, on_click=_step_page, args=(-1,), use_container_width=True
+    )
+    next_col.button(
+        "Next →", disabled=page >= n_pages, on_click=_step_page, args=(1,), use_container_width=True
+    )
     for c in cases:
         label = f"#{c['row_id']} · {c['typology']} · {c['risk_tier']} ({c['fused_score']:.2f})"
         if st.button(label, key=f"case_{c['row_id']}", use_container_width=True):

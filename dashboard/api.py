@@ -168,13 +168,24 @@ def analyze(row_id: int):
 
 
 @app.get("/cases")
-def list_cases(tier: str | None = None, limit: int = 100):
+def list_cases(tier: str | None = None, limit: int = 100, offset: int = 0):
+    """One page of the queue, highest fused score first. `total` is the count
+    for the whole filter so the UI can page through every case, not just the
+    first `limit`."""
+    if limit < 1 or offset < 0:
+        raise HTTPException(400, "limit must be >= 1 and offset >= 0")
     state = _load_state()
     df = state["meta_df"]
     if tier:
         df = df.loc[df["risk_tier"] == tier]
-    df = df.sort_values("fused_score", ascending=False).head(limit)
-    return df.reset_index().to_dict(orient="records")
+    df = df.sort_values("fused_score", ascending=False)
+    page = df.iloc[offset : offset + limit]
+    return {
+        "total": len(df),
+        "offset": offset,
+        "limit": limit,
+        "cases": page.reset_index().to_dict(orient="records"),
+    }
 
 
 @app.get("/case/{row_id}")
