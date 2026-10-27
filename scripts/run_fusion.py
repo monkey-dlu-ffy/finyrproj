@@ -33,7 +33,10 @@ from sklearn.model_selection import StratifiedKFold
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import joblib
+
 from agents.document.extract import DocumentAgent, fit_document_stats
+from agents.pipeline import BUNDLE_PATH, risk_tier
 from agents.reconciliation.rules import APPROVAL_LIMIT_QUANTILE, ReconciliationAgent
 from agents.transaction.features_erp import add_features, build_xy, fit_category_levels, fit_vendor_account_stats
 from agents.transaction.model_erp import TransactionAgent
@@ -47,29 +50,19 @@ N_FOLDS = 5
 EXTERNAL_TXN_SCORES = EXPERIMENTS_DIR / "transaction_scores.parquet"
 
 
-def risk_tier(score: float, f1_threshold: float) -> str:
-    """Two tiers: high = flagged at the val-selected F1 threshold, low = not.
-
-    There is no medium because the scores have no middle. They fall into three
-    groups by which rules fired -- none (val fraud rate 1.2%), only missing_po
-    (0%), any other rule (99.1%) -- and nothing scores in [0.14, 0.8) on val or
-    test. Every three-tier cut tried put one of those groups in medium under a
-    label it didn't earn: a 0.3/0.7 band left it empty; "flagged at only the
-    looser threshold" filled it with 82 frauds that are 100% fraud; adding
-    "a rule fired" mixed those with 240 missing_po-only rows that are 0%."""
-    return "high" if score >= f1_threshold else "low"
-
-
-def load_engineered_splits() -> dict[str, pd.DataFrame]:
+def load_engineered_splits() -> tuple[dict[str, pd.DataFrame], dict]:
+    """The engineered splits, and the train vendor/account stats they were
+    engineered with (saved for live scoring, see agents/pipeline.py)."""
     train = pd.read_parquet(LINKED_DIR / "train.parquet")
     val = pd.read_parquet(LINKED_DIR / "val.parquet")
     test = pd.read_parquet(LINKED_DIR / "test.parquet")
     stats = fit_vendor_account_stats(train)
-    return {
+    splits = {
         "train": add_features(train, stats, seed=RANDOM_SEED),
         "val": add_features(val, stats, seed=RANDOM_SEED),
         "test": add_features(test, stats, seed=RANDOM_SEED),
     }
+    return splits, stats
 
 
 def load_manifest_joined() -> pd.DataFrame:
@@ -98,7 +91,7 @@ def transaction_oof_scores(
 
 def main() -> int:
     seed_everything()
-    splits = load_engineered_splits()
+    splits, vendor_stats = load_engineered_splits()
     manifest = load_manifest_joined()
 
     vendor_master = pd.read_json(LINKED_DIR / "vendor_master.json")
@@ -235,6 +228,29 @@ def main() -> int:
     meta_df.to_parquet(EXPERIMENTS_DIR / "fusion_scores.parquet", index=False)
     (EXPERIMENTS_DIR / "fusion_results.json").write_text(json.dumps(results, indent=2))
     print(f"wrote {EXPERIMENTS_DIR / 'fusion_scores.parquet'}, fusion_results.json")
+
+    # Everything a posting outside the corpus needs to be scored the same way
+    # (agents/pipeline.py). With Kaggle transaction scores there is no
+    # in-process agent yet; fit the same full-train one the else-branch fits.
+    if full_agent is None:
+        X_train, y_train = build_xy(splits["train"], category_levels)
+        X_val, y_val = build_xy(splits["val"], category_levels)
+        full_agent = TransactionAgent(seed=RANDOM_SEED, category_levels=category_levels).fit(X_train, y_train, X_val, y_val)
+    BUNDLE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(
+        {
+            "meta_clf": meta_clf,
+            "feature_cols": feature_cols,
+            "f1_threshold": f1_threshold,
+            "txn_agent": full_agent,
+            "vendor_stats": vendor_stats,
+            "doc_stats": doc_agent.stats,
+            "recon_agent": recon_agent,
+            "vendor_name_by_id": vendor_name_by_id,
+        },
+        BUNDLE_PATH,
+    )
+    print(f"wrote {BUNDLE_PATH}")
     return 0
 
 

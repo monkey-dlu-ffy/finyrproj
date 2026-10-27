@@ -181,6 +181,33 @@ class ReconciliationAgent:
         `df` itself as a fallback for ad-hoc/single-batch callers."""
         if ledger is None:
             ledger = df
+        invoice_index = self._invoice_index(ledger)
+        split_index = self._split_index(ledger)
+        out = []
+        for row_id, row in df.iterrows():
+            fired = self._fired_rules(row, invoice_index, split_index)
+            score = min(1.0, sum(RULE_WEIGHTS[f["type"]] for f in fired))
+            out.append(AgentEnvelope(agent="reconciliation", row_id=int(row_id), score=score, evidence=fired))
+        return out
+
+    def analyze_one(self, row: pd.Series, history: pd.DataFrame) -> AgentEnvelope:
+        """One new posting, checked against the postings already on file --
+        the live-scoring path (agents/pipeline.py). Same rules and weights as
+        analyze_batch; only the indexes are built small. `history` needs only
+        the rows sharing this posting's invoice number or (vendor_id,
+        po_number), the only rows either cross-posting rule can ever cite,
+        and must not contain `row` itself (it is added here)."""
+        row_frame = row.to_frame().T
+        same_invoice = history.loc[history["invoice_number"] == row["invoice_number"]]
+        same_po = history.loc[(history["vendor_id"] == row["vendor_id"]) & (history["po_number"] == row.get("po_number"))]
+        invoice_index = self._invoice_index(pd.concat([same_invoice, row_frame], ignore_index=True))
+        split_index = self._split_index(pd.concat([same_po, row_frame], ignore_index=True))
+        fired = self._fired_rules(row, invoice_index, split_index)
+        score = min(1.0, sum(RULE_WEIGHTS[f["type"]] for f in fired))
+        return AgentEnvelope(agent="reconciliation", row_id=int(row["row_id"]), score=score, evidence=fired)
+
+    @staticmethod
+    def _invoice_index(ledger: pd.DataFrame) -> dict[str, list[dict]]:
         has_pointer_cols = "row_id" in ledger.columns and "split" in ledger.columns
         # Only invoice numbers that repeat can ever produce a non-empty
         # `others` list in _fired_rules -- at full ledger scale (533K rows,
@@ -202,10 +229,4 @@ class ReconciliationAgent:
                 }
                 for _, r in group.iterrows()
             ]
-        split_index = self._split_index(ledger)
-        out = []
-        for row_id, row in df.iterrows():
-            fired = self._fired_rules(row, invoice_index, split_index)
-            score = min(1.0, sum(RULE_WEIGHTS[f["type"]] for f in fired))
-            out.append(AgentEnvelope(agent="reconciliation", row_id=int(row_id), score=score, evidence=fired))
-        return out
+        return invoice_index

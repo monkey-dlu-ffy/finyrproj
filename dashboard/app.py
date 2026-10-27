@@ -4,9 +4,11 @@ rather than importing it directly, so the FastAPI service stays the single
 source of truth for scoring/audit-log writes -- the spec's own separation
 (FastAPI backend + Streamlit frontend), not a shortcut merge of the two.
 
-Two pages: the review queue, and the Metrics page (dashboard/metrics_page.py),
-which reads the score files directly -- it reports on the whole test split,
-not on any one case, so it has nothing to take from the API.
+Three pages: the review queue; Score a new entry (dashboard/score_page.py),
+where a posting typed in is scored live by the API; and the Metrics page
+(dashboard/metrics_page.py), which reads the score files directly -- it
+reports on the whole test split, not on any one case, so it has nothing to
+take from the API.
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from dashboard.metrics_page import metrics_page
+from dashboard.score_page import score_page
 from linked_pipeline.typologies import mask_ghost_vendor_ids
 
 API = "http://127.0.0.1:8811"
@@ -444,6 +447,7 @@ def review_queue() -> None:
 pages = st.navigation(
     [
         st.Page(review_queue, title="Review queue", default=True),
+        st.Page(score_page, title="Score a new entry", url_path="score"),
         st.Page(metrics_page, title="Metrics", url_path="metrics"),
     ],
     position="top",

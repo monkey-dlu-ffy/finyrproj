@@ -205,6 +205,55 @@ aligned field-by-field diff plus both invoice images, so the reviewer can see
 what matches (invoice no, vendor) against what doesn't (BELNR, posting date). Accept/Reject/Escalate buttons log
 to an append-only SQLite audit log (`experiments/audit_log.sqlite3`).
 
+### Live scoring: postings that were never in the corpus
+
+The review queue shows the test split's *batch* scores, the ones the metrics
+are computed from: `/case/{id}` and `/analyze` look them up in
+`experiments/fusion_scores.parquet` and don't re-run anything. A new posting
+is scored live instead:
+
+- `run_fusion.py` saves everything it fits to `models/live_pipeline.joblib`:
+  the fusion meta-classifier and its threshold, the full-train transaction
+  agent, the vendor/account baselines, the document agent's per-description
+  baselines, and the reconciliation agent's vendor master and limits.
+- `agents/pipeline.py::LivePipeline` scores one posting plus its invoice
+  fields with those objects. The transaction, document and reconciliation
+  agents and the fusion model all run at request time. The duplicate and
+  split-purchase rules and the vendor-velocity features check the posting
+  against the full corpus ledger plus every earlier live submission.
+- `POST /score` (API) and the dashboard's **Score a new entry** page call it.
+  Each submission is stored in the `submissions` table of the audit-log
+  database and replayed into the history on restart. Agent scores and the
+  reviewer's decision are logged under `case_id = -submission_id`.
+
+**Invoice fields are typed in, not OCR'd**, as an e-invoicing feed would
+supply them. An uploaded invoice image is shown to the reviewer and never
+read. `hour_of_day` comes from the posting's entered hour, defaulting to
+10:00; the corpus has no posting time, so the batch run draws it at random.
+
+To check it:
+
+```powershell
+py -3.13 scripts\run_fusion.py            # writes models\live_pipeline.joblib
+py -3.13 scripts\smoke_live_scoring.py    # parity vs batch scores + 6 out-of-corpus scenarios
+```
+
+`smoke_live_scoring.py` re-scores 500 test postings one at a time and
+compares them with their batch scores. It then runs six hand-built
+postings, each of which must trip the expected rule: clean → no rules, low
+tier; invoice 10% above ledger → `amount_mismatch`; unknown vendor →
+`vendor_absent_from_master`; same invoice resubmitted → `duplicate_invoice_number`;
+three pieces under the limit on one PO → `split_purchase` on the third;
+low-tier description on a large amount → `description_tier_mismatch`.
+
+Last run: document and reconciliation scores matched the batch run exactly on 500/500
+postings. Transaction and fused scores matched exactly on 497/500; the
+other 3 differ by at most 0.028 (transaction) and 0.0002 (fused). The risk
+tier matched on 500/500, and all 6 scenarios pass. The median is ~0.4 s per
+posting, after a ~3 s one-time load. When posting dates tie, a re-scored
+corpus posting takes its original place in its split, as in the batch run;
+a live posting goes after everything already on file.
+
 **Known gaps, not fixed:**
 - `threshold_split` is now caught by the reconciliation agent's
   `split_purchase` rule (2+ postings, same vendor + PO, within 7 days, each

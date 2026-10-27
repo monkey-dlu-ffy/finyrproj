@@ -1,13 +1,26 @@
-"""FastAPI scoring/review service. Reads precomputed agent + fusion scores
-(experiments/fusion_scores.parquet, reconciliation_results.json) rather than
-re-running the agents per request -- CPU inference here is cheap, but the
-coordinator's LLM call is not (~3 tok/s, README Phase 0), so /case/{id}
-generates its narrative lazily and caches it, and /analyze only re-scores
-the numeric agents, never blocking on the LLM.
+"""FastAPI scoring/review service.
 
-SQLite audit_log is append-only: every /analyze call and every auditor
-decision is a new row, never an update, so the log stays a true record of
-what was shown and decided, not just the latest state.
+Two kinds of case:
+
+* Corpus cases (/cases, /case/{id}, /analyze): the held-out test split, read
+  from the batch scores scripts/run_fusion.py wrote
+  (experiments/fusion_scores.parquet, reconciliation_results.json). These
+  are what the paper's metrics are computed over; /analyze looks a case up,
+  it does not re-run the agents.
+* Live submissions (/score, /submission/{id}): a posting that was never in
+  the corpus, scored at request time by all three agents and the fusion
+  meta-classifier (agents/pipeline.py). Invoice fields arrive as structured
+  input -- there is no OCR.
+
+Either way the coordinator's LLM call is slow (~3 tok/s, README Phase 0), so
+narratives are generated lazily per case and cached, never on the scoring
+path.
+
+SQLite audit_log is append-only: every /analyze and /score call and every
+auditor decision is a new row, never an update, so the log stays a true
+record of what was shown and decided, not just the latest state. Live
+submissions are logged under case_id = -submission_id, so they can't collide
+with corpus row_ids.
 """
 
 from __future__ import annotations
@@ -15,16 +28,19 @@ from __future__ import annotations
 import json
 import sqlite3
 import sys
+import threading
 import time
+from datetime import date
 from pathlib import Path
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from agents.coordinator.narrative import CoordinatorAgent
+from agents.pipeline import DESCRIPTIONS, LivePipeline
 from config import EXPERIMENTS_DIR, LINKED_DIR
 
 DB_PATH = EXPERIMENTS_DIR / "audit_log.sqlite3"
@@ -135,6 +151,15 @@ def _db() -> sqlite3.Connection:
             auditor_decision TEXT
         )"""
     )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS submissions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ledger_json TEXT NOT NULL,
+            invoice_json TEXT NOT NULL,
+            result_json TEXT NOT NULL,
+            timestamp REAL NOT NULL
+        )"""
+    )
     return conn
 
 
@@ -145,6 +170,8 @@ class Decision(BaseModel):
 
 @app.post("/analyze")
 def analyze(row_id: int):
+    """A corpus case's batch scores, logged as shown. Looked up, not
+    recomputed -- POST /score is the path that runs the agents."""
     state = _load_state()
     if row_id not in state["meta_df"].index:
         raise HTTPException(404, f"row_id {row_id} not in the document-linked corpus")
@@ -319,3 +346,186 @@ def record_decision(row_id: int, decision: Decision):
     conn.commit()
     conn.close()
     return {"row_id": row_id, "recorded": decision.decision}
+
+
+# --- Live submissions -------------------------------------------------------
+
+_live: dict = {}
+# One scorer at a time: each submission joins the history the next one is
+# checked against, so two scored concurrently could each miss the other.
+_score_lock = threading.Lock()
+
+
+def _pipeline() -> LivePipeline:
+    """Loaded once. Earlier submissions are replayed into its history, so a
+    restart doesn't forget them -- a resubmitted invoice is still a duplicate."""
+    if "pipeline" not in _live:
+        pipe = LivePipeline.load()
+        conn = _db()
+        for (ledger_json,) in conn.execute("SELECT ledger_json FROM submissions ORDER BY id"):
+            pipe.remember(json.loads(ledger_json))
+        conn.close()
+        _live["pipeline"] = pipe
+        _live["coordinator"] = CoordinatorAgent()
+        _live["narrative_cache"] = {}
+    return _live["pipeline"]
+
+
+class LedgerEntry(BaseModel):
+    vendor_id: str
+    DMBTR: float = Field(gt=0)
+    posting_date: date
+    doc_date: date
+    invoice_number: str
+    po_number: str | None = None
+    description: str
+    WAERS: str
+    BUKRS: str
+    KTOSL: str
+    PRCTR: str
+    BSCHL: str
+    HKONT: str
+    hour_of_day: int | None = Field(default=None, ge=0, le=23)
+
+
+class InvoiceFields(BaseModel):
+    vendor_name: str
+    amount: float = Field(gt=0)
+    invoice_number: str
+    po_number: str | None = None
+
+
+class Submission(BaseModel):
+    ledger: LedgerEntry
+    invoice: InvoiceFields
+
+
+@app.get("/live/options")
+def live_options():
+    """What the submission form offers: vendors, descriptions, SAP code levels."""
+    pipe = _pipeline()
+    return {
+        "vendors": [{"vendor_id": k, "vendor_name": v} for k, v in sorted(pipe.vendor_name_by_id.items())],
+        "descriptions": DESCRIPTIONS,
+        "category_levels": {k: [str(x) for x in v] for k, v in pipe.category_levels.items()},
+    }
+
+
+@app.post("/score")
+def score_submission(sub: Submission):
+    pipe = _pipeline()
+    with _score_lock:
+        conn = _db()
+        try:
+            # Inserted first for its id; committed only once scoring succeeds.
+            cur = conn.execute(
+                "INSERT INTO submissions (ledger_json, invoice_json, result_json, timestamp) VALUES (?,?,?,?)",
+                ("{}", "{}", "{}", time.time()),
+            )
+            sub_id = cur.lastrowid
+            ledger = {
+                **sub.ledger.model_dump(mode="json"),
+                "BELNR": pipe.next_belnr(),
+                "row_id": -sub_id,
+                "split": "live",
+            }
+            invoice = sub.invoice.model_dump(mode="json")
+            result = pipe.score(ledger, invoice)
+            conn.execute(
+                "UPDATE submissions SET ledger_json = ?, invoice_json = ?, result_json = ? WHERE id = ?",
+                (json.dumps(ledger), json.dumps(invoice), json.dumps(result, default=str), sub_id),
+            )
+            now = time.time()
+            for agent_id, score_key, evidence_key in (
+                ("transaction", "transaction_score", "transaction_evidence"),
+                ("document", "document_score", "document_evidence"),
+                ("reconciliation", "reconciliation_score", "recon_evidence"),
+                ("fusion", "fused_score", None),
+            ):
+                evidence = result[evidence_key] if evidence_key else {"risk_tier": result["risk_tier"]}
+                conn.execute(
+                    "INSERT INTO audit_log (case_id, agent_id, score, evidence_json, timestamp, auditor_decision) VALUES (?,?,?,?,?,NULL)",
+                    (-sub_id, agent_id, result[score_key], json.dumps(evidence, default=str), now),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+        pipe.remember(ledger)
+    return {"submission_id": sub_id, "ledger": ledger, "invoice": invoice, **result}
+
+
+@app.get("/submissions")
+def list_submissions(limit: int = 50):
+    conn = _db()
+    rows = conn.execute(
+        "SELECT id, ledger_json, result_json, timestamp FROM submissions ORDER BY id DESC LIMIT ?", (limit,)
+    ).fetchall()
+    conn.close()
+    out = []
+    for sub_id, ledger_json, result_json, ts in rows:
+        ledger, result = json.loads(ledger_json), json.loads(result_json)
+        out.append(
+            {
+                "submission_id": sub_id,
+                "timestamp": ts,
+                "vendor_id": ledger.get("vendor_id"),
+                "invoice_number": ledger.get("invoice_number"),
+                "DMBTR": ledger.get("DMBTR"),
+                "fused_score": result.get("fused_score"),
+                "risk_tier": result.get("risk_tier"),
+            }
+        )
+    return {"submissions": out}
+
+
+def _submission_row(sub_id: int) -> tuple[dict, dict, dict]:
+    conn = _db()
+    row = conn.execute("SELECT ledger_json, invoice_json, result_json FROM submissions WHERE id = ?", (sub_id,)).fetchone()
+    conn.close()
+    if row is None:
+        raise HTTPException(404, f"submission {sub_id} not found")
+    return tuple(json.loads(x) for x in row)
+
+
+@app.get("/submission/{sub_id}")
+def get_submission(sub_id: int):
+    ledger, invoice, result = _submission_row(sub_id)
+    return {"submission_id": sub_id, "ledger": ledger, "invoice": invoice, **result}
+
+
+@app.post("/submission/{sub_id}/narrative")
+def submission_narrative(sub_id: int):
+    """Separate from GET /submission/{id} so showing a result never waits on
+    the LLM. Cached on success only, as in get_case."""
+    _pipeline()
+    cache = _live["narrative_cache"]
+    if sub_id in cache:
+        return cache[sub_id]
+    ledger, invoice, result = _submission_row(sub_id)
+    case = {
+        "row_id": sub_id,
+        **{k: result[k] for k in ("transaction_score", "document_score", "reconciliation_score", "fused_score", "risk_tier")},
+        "recon_evidence": result["recon_evidence"],
+        # document_number/posting_date tell the coordinator THIS entry apart
+        # from any posting a rule cites -- see get_case.
+        "doc_fields": {
+            "document_number": ledger["BELNR"],
+            "vendor_name": invoice["vendor_name"],
+            "invoice_number": invoice["invoice_number"],
+            "invoice_amount": invoice["amount"],
+            "ledger_amount": ledger["DMBTR"],
+            "posting_date": ledger["posting_date"],
+        },
+    }
+    try:
+        narrative = _live["coordinator"].narrate(case)
+        cache[sub_id] = narrative
+    except Exception as exc:  # Ollama unavailable -- degrade, don't 500
+        narrative = {"narrative": f"(narrative unavailable: {exc})", "grounded": False}
+    return narrative
+
+
+@app.post("/submission/{sub_id}/decision")
+def record_submission_decision(sub_id: int, decision: Decision):
+    _submission_row(sub_id)
+    return record_decision(-sub_id, decision)
